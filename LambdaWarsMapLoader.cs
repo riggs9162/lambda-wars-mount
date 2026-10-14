@@ -15,14 +15,28 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		budget = currentBudget;
 		var bsp = new LambdaWarsBsp( Host.GetFileBytes( filename ) );
 		Host.PrepareMapPackage( filename, bsp.GetLump( 40 ) );
+		using var propSource = bsp.Open();
+		var staticProps = LambdaWarsStaticPropReader.Read( propSource.BaseStream );
+		budget.SetStage( "Checking static-prop dependencies" );
+		var propPreflight = LambdaWarsStaticPropPreflight.Inspect( Host, staticProps, budget.Check );
+		if ( !propPreflight.IsValid )
+		{
+			var failures = string.Join( "; ", propPreflight.Failures.Take( 3 )
+				.Select( failure => $"{failure.ModelPath}: {failure.Message}" ) );
+			throw new InvalidDataException( $"Original map static-prop dependencies failed before rendering: {failures}" );
+		}
+
 		var model = BuildGeometry( bsp );
 		var world = new GameObject( true, filename );
 		world.Components.Create<ModelRenderer>().Model = model;
 		var collider = world.Components.Create<ModelCollider>();
 		collider.Model = model;
 		collider.Static = true;
+        budget.SetStage( "Preparing brush entities" );
         AddBrushEntities( bsp );
-        AddStaticProps( bsp );
+        budget.SetStage( "Loading static props" );
+        AddStaticProps( staticProps );
+        budget.SetStage( "Loading entity props" );
         AddEntityProps( bsp );
         AddLighting( bsp );
         AddEntityMarkers( bsp );
@@ -30,6 +44,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 	private Model BuildGeometry( LambdaWarsBsp bsp, int modelIndex = 0 )
 	{
+		budget.SetStage( $"Reading geometry for BSP model {modelIndex}" );
 		using var reader = bsp.Open();
 		var vertices = new Vector3[bsp.Lumps[3].Length / 12];
 		reader.BaseStream.Position = bsp.Lumps[3].Offset;
@@ -108,9 +123,10 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 			if ( !groups.TryGetValue( name, out var group ) ) groups[name] = group = new();
 			if ( displacement >= 0 ) AddDisplacement( bsp, reader, displacement, points, normal, info, data, group, collisionVertices, collisionIndices );
-			else AddPolygon( points, normal, info, data, group, collisionVertices, collisionIndices );
+			else AddPolygon( points, normal, info, data, group );
 		}
 
+		budget.SetStage( $"Loading {groups.Count} materials for BSP model {modelIndex}" );
 		var builder = Model.Builder.WithName( Path );
 		foreach ( var pair in groups )
 		{
@@ -121,24 +137,24 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			mesh.CreateIndexBuffer( pair.Value.Indices.Count, pair.Value.Indices );
 			builder.AddMesh( mesh );
 		}
-		builder.AddCollisionMesh( collisionVertices, collisionIndices );
+		budget.SetStage( $"Preparing collision for BSP model {modelIndex}" );
+		if ( collisionIndices.Count > 0 )
+			builder.AddCollisionMesh( collisionVertices, collisionIndices );
         AddBrushCollision( bsp, reader, builder, modelIndex );
+		budget.SetStage( $"Creating BSP model {modelIndex}" );
 		return builder.Create();
 	}
 
-	private static void AddPolygon( Vector3[] points, Vector3 normal, LambdaWarsBsp.TextureInfo info, LambdaWarsBsp.TextureData data, Geometry group, List<Vector3> collisionVertices, List<int> collisionIndices )
+	private static void AddPolygon( Vector3[] points, Vector3 normal, LambdaWarsBsp.TextureInfo info, LambdaWarsBsp.TextureData data, Geometry group )
 	{
 		var index = group.Vertices.Count;
-		var collision = collisionVertices.Count;
 		foreach ( var point in points )
 		{
 			group.Vertices.Add( MakeVertex( point, normal, info, data ) );
-			collisionVertices.Add( point );
 		}
 		for ( var i = 1; i < points.Length - 1; i++ )
 		{
 			group.Indices.AddRange( new[] { index, index + i, index + i + 1 } );
-			collisionIndices.AddRange( new[] { collision, collision + i, collision + i + 1 } );
 		}
 	}
 
@@ -290,67 +306,55 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 		return brushes;
 	}
-	private void AddStaticProps( LambdaWarsBsp bsp )
+	private void AddStaticProps( LambdaWarsStaticPropMetadata metadata )
 	{
-		using var reader = bsp.Open();
-		reader.BaseStream.Position = bsp.Lumps[35].Offset;
-		var count = reader.ReadInt32();
-		for ( var i = 0; i < count; i++ )
+		var models = new Dictionary<string, Model>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var source in metadata.Props )
 		{
-			reader.BaseStream.Position = bsp.Lumps[35].Offset + 4 + i * 16;
-			var id = reader.ReadUInt32();
-			reader.ReadUInt16();
-			var version = reader.ReadUInt16();
-			var offset = reader.ReadInt32();
-			var length = reader.ReadInt32();
-			if ( id != 0x70727073 )
-				continue;
-
-			reader.BaseStream.Position = offset;
-			var modelCount = reader.ReadInt32();
-			var models = new string[modelCount];
-			for ( var j = 0; j < modelCount; j++ )
-				models[j] = Encoding.UTF8.GetString( reader.ReadBytes( 128 ) ).TrimEnd( '\0' );
-
-			var leaves = reader.ReadInt32();
-			reader.BaseStream.Position += leaves * 2;
-			var propCount = reader.ReadInt32();
-			if ( propCount == 0 )
-				return;
-
-			var firstProp = reader.BaseStream.Position;
-			var stride = checked((int)((offset + length - firstProp) / propCount));
-			if ( stride < 56 )
-				throw new InvalidDataException( $"Unsupported static prop layout v{version}." );
-
-			for ( var j = 0; j < propCount; j++ )
+			budget.Check();
+			if ( !models.TryGetValue( source.ModelPath, out var model ) )
 			{
-				budget.Check();
-				reader.BaseStream.Position = firstProp + j * stride;
-				var position = LambdaWarsBsp.ReadVector( reader );
-				var angleVector = LambdaWarsBsp.ReadVector( reader );
-				var modelIndex = reader.ReadUInt16();
-				reader.ReadUInt16();
-				reader.ReadUInt16();
-				var solid = reader.ReadByte();
-				reader.ReadByte();
-				var skin = reader.ReadInt32();
-				var model = Host.LoadContentModel( models[modelIndex] );
+				model = Host.LoadContentModel( source.ModelPath );
 				if ( model is null || model.IsError )
-					throw new InvalidDataException( $"Static prop could not be loaded: {models[modelIndex]}" );
+					throw new InvalidDataException( $"Static prop could not be loaded: {source.ModelPath}" );
 
-				var prop = new GameObject( true, models[modelIndex] );
-				prop.WorldPosition = position;
-				prop.WorldRotation = new Angles( angleVector.x, angleVector.y, angleVector.z );
-				var renderer = prop.Components.Create<ModelRenderer>();
-				renderer.Model = model;
-				renderer.MaterialGroup = skin.ToString();
-				if ( solid != 0 )
-				{
-					var collider = prop.Components.Create<ModelCollider>();
-					collider.Model = model;
-					collider.Static = true;
-				}
+				models.Add( source.ModelPath, model );
+			}
+
+			budget.Check();
+			var prop = new GameObject( true, source.ModelPath );
+			prop.WorldPosition = source.Position;
+			prop.WorldRotation = source.Rotation;
+			ModelRenderer renderer;
+			if ( model.BoneCount > 0 )
+			{
+				var skinned = prop.Components.Create<SkinnedModelRenderer>();
+				skinned.UseAnimGraph = false;
+				renderer = skinned;
+			}
+			else
+			{
+				renderer = prop.Components.Create<ModelRenderer>();
+			}
+
+			renderer.Model = model;
+			if ( model.MaterialGroupCount > 0 )
+			{
+				if ( source.Skin >= model.MaterialGroupCount )
+					throw new InvalidDataException( $"Static prop skin {source.Skin} is unavailable: {source.ModelPath}" );
+
+				renderer.MaterialGroup = $"Skin {source.Skin}";
+			}
+			else if ( source.Skin != 0 )
+			{
+				throw new InvalidDataException( $"Static prop requests a missing skin: {source.ModelPath}" );
+			}
+
+			if ( source.Solid != 0 )
+			{
+				var collider = prop.Components.Create<ModelCollider>();
+				collider.Model = model;
+				collider.Static = true;
 			}
 		}
 	}
@@ -417,10 +421,31 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 							continue;
 
 						var point = (cross * sides[a].Distance + sides[c].Normal.Cross( sides[a].Normal ) * sides[b].Distance + sides[a].Normal.Cross( sides[b].Normal ) * sides[c].Distance) / determinant;
-						if ( sides.Any( side => side.Normal.Dot( point ) - side.Distance > 0.1f ) || hull.Any( vertex => vertex.DistanceSquared( point ) < 0.01f ) )
+						var inside = true;
+						for ( var side = 0; side < sides.Length; side++ )
+						{
+							if ( sides[side].Normal.Dot( point ) - sides[side].Distance <= 0.1f )
+								continue;
+
+							inside = false;
+							break;
+						}
+
+						if ( !inside )
 							continue;
 
-						hull.Add( point );
+						var duplicate = false;
+						for ( var vertex = 0; vertex < hull.Count; vertex++ )
+						{
+							if ( hull[vertex].DistanceSquared( point ) >= 0.01f )
+								continue;
+
+							duplicate = true;
+							break;
+						}
+
+						if ( !duplicate )
+							hull.Add( point );
 					}
 				}
 			}
