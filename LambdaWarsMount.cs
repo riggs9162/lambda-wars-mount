@@ -17,9 +17,9 @@ public sealed class LambdaWarsMount : BaseMount
 
 	protected override void Initialize( InitializeContext context )
 	{
-		var directory = Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" );
-		if ( string.IsNullOrWhiteSpace( directory ) && context.IsAppInstalled( AppId ) )
-			directory = context.GetAppDirectory( AppId );
+		var directory = context.IsAppInstalled( AppId ) ? context.GetAppDirectory( AppId ) : null;
+		if ( string.IsNullOrWhiteSpace( directory ) || !System.IO.Directory.Exists( directory ) )
+			directory = Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" );
 
 		if ( string.IsNullOrWhiteSpace( directory ) || !System.IO.Directory.Exists( directory ) )
 			return;
