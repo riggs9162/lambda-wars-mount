@@ -12,7 +12,15 @@ internal sealed partial class SourceModelBuilder
 	}
 
 	private static string[] AddSkeleton( ModelBuilder builder, MdlFile mdl,
-		BBox?[] boneBounds, Transform[] boneTransforms, bool parentLocal )
+		BBox?[] boneBounds, Transform[] boneTransforms )
+	{
+		var bones = CreateSkeletonBones( mdl, boneBounds, boneTransforms );
+		if ( bones.Length > 0 )
+			builder.AddBones( bones );
+		return bones.Select( bone => bone.Name ).ToArray();
+	}
+
+	internal static ModelBuilder.Bone[] CreateSkeletonBones( MdlFile mdl, BBox?[] boneBounds, Transform[] boneTransforms )
 	{
 		var boneNames = new string[mdl.Bones.Length];
 		var bones = new ModelBuilder.Bone[mdl.Bones.Length];
@@ -24,7 +32,7 @@ internal sealed partial class SourceModelBuilder
 		for ( int i = 0; i < mdl.Bones.Length; i++ )
 		{
 			var bone = mdl.Bones[i];
-			var transform = parentLocal && bone.Parent != -1
+			var transform = bone.Parent != -1
 				? boneTransforms[bone.Parent].ToLocal( boneTransforms[i] )
 				: boneTransforms[i];
 			bones[i] = new ModelBuilder.Bone(
@@ -37,9 +45,7 @@ internal sealed partial class SourceModelBuilder
 				Bounds = boneBounds[i]
 			};
 		}
-		if ( bones.Length > 0 )
-			builder.AddBones( bones );
-		return boneNames;
+		return bones;
 	}
 
 	private static Transform[] GetBoneTransforms( MdlFile mdl, Transform[] referencePose )

@@ -49,7 +49,7 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 		var boneBounds = AddGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, skinTransforms );
 		materials.AddGroups( builder );
 
-		var boneNames = AddSkeleton( builder, mdl, boneBounds, boneTransforms, parentLocal: vtx == null );
+		var boneNames = AddSkeleton( builder, mdl, boneBounds, boneTransforms );
 		PhysicsPlan physicsPlan = null;
 		if ( physics != null )
 		{
