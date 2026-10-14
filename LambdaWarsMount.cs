@@ -11,7 +11,7 @@ public sealed class LambdaWarsMount : BaseMount
 	private readonly List<object> maps = new();
 	private string activePackage;
 	private string installationPath;
-	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) == "1";
+	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) != "0";
 	internal bool MapsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_MAP_IMPORT" ) == "1";
 	internal bool FacialMorphsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_FACIAL_MORPHS" ) == "1";
 
