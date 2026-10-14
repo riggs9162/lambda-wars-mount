@@ -29,17 +29,7 @@ internal static class LambdaWarsModelInfo
 			SourceModelBuilder.ValidateSkeleton( mdl, source.ReferencePose );
 			var materials = new List<object>();
 			var textures = new Dictionary<string, object>( StringComparer.OrdinalIgnoreCase );
-			var materialNames = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
-			for ( var slot = 0; slot < mdl.MaterialCount; slot++ )
-			{
-				materialNames.Add( mdl.GetMaterialName( slot ) );
-				for ( var lod = 0; lod < (vtx?.RenderLodCount ?? 0); lod++ )
-				{
-					var replacement = vtx.GetMaterialReplacement( lod, slot );
-					if ( !string.IsNullOrWhiteSpace( replacement ) )
-						materialNames.Add( replacement );
-				}
-			}
+			var materialNames = ReferencedMaterialNames( mdl, vtx );
 			foreach ( var name in materialNames )
 			{
 				var path = FindMaterial( mount, mdl, name );
@@ -67,6 +57,7 @@ internal static class LambdaWarsModelInfo
 						texture.Header.Height,
 						Format = texture.Header.HiResFormat.ToString(),
 						texture.FrameCount,
+						texture.FaceCount,
 						texture.MipmapCount
 					} );
 				}
@@ -88,6 +79,43 @@ internal static class LambdaWarsModelInfo
 		{
 			return new LambdaWarsModelReport { Path = filename, IsValid = false, Error = exception.Message };
 		}
+	}
+
+	/// <summary>Collects the material names loaded by renderable meshes across their authored skins and LODs.</summary>
+	private static HashSet<string> ReferencedMaterialNames( MdlFile mdl, VtxFile vtx )
+	{
+		var names = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		if ( vtx is null )
+			return names;
+
+		for ( var body = 0; body < mdl.BodyPartCount; body++ )
+		{
+			var part = mdl.GetBodyPart( body );
+			for ( var model = 0; model < part.NumModels; model++ )
+			{
+				var definition = mdl.GetModel( body, model );
+				for ( var meshIndex = 0; meshIndex < definition.NumMeshes; meshIndex++ )
+				{
+					var mesh = mdl.GetMesh( body, model, meshIndex );
+					if ( mesh.NumVertices == 0 )
+						continue;
+
+					for ( var lod = 0; lod < vtx.RenderLodCount; lod++ )
+					{
+						if ( vtx.GetIndexCount( body, model, lod, meshIndex ) == 0 )
+							continue;
+
+						for ( var skin = 0; skin < Math.Max( 1, mdl.SkinFamilyCount ); skin++ )
+						{
+							var texture = mdl.GetSkinMaterial( mesh.Material, skin );
+							names.Add( vtx.GetMaterialReplacement( lod, texture ) ?? mdl.GetMaterialName( texture ) );
+						}
+					}
+				}
+			}
+		}
+
+		return names;
 	}
 
 	private static readonly string[] TextureParameters =
