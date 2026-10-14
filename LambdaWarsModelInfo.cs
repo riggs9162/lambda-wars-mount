@@ -12,6 +12,7 @@ internal sealed class LambdaWarsModelReport
 	public int BoneCount { get; init; }
 	public int TotalVertices { get; init; }
 	public int LodCount { get; init; }
+	public bool HasFacialMorphs { get; init; }
 	public object[] Materials { get; init; } = [];
 	public object[] Textures { get; init; } = [];
 }
@@ -78,6 +79,7 @@ internal static class LambdaWarsModelInfo
 				BoneCount = mdl.BoneCount,
 				TotalVertices = mdl.TotalVertices,
 				LodCount = vtx?.RenderLodCount ?? 0,
+				HasFacialMorphs = mdl.FlexNames.Any(),
 				Materials = materials.ToArray(),
 				Textures = textures.Values.ToArray()
 			};

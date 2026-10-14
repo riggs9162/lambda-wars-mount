@@ -96,7 +96,7 @@ public abstract partial class BaseMount
 				var vvdPath = Path.ChangeExtension( resource.Path, ".vvd" );
 				var vtxPath = Path.ChangeExtension( resource.Path, ".dx90.vtx" );
 				var hasVertices = Files.ContainsKey( vvdPath );
-				var hasIndices = Files.ContainsKey( vtxPath );
+				var hasIndices = Files.ContainsKey( vtxPath ) || Files.ContainsKey( Path.ChangeExtension( resource.Path, ".vtx" ) );
 				if ( (hasVertices && hasIndices) || Files.ContainsKey( Path.ChangeExtension( resource.Path, ".phy" ) ) )
 					return false;
 				var missing = !hasVertices && !hasIndices ? $"{vvdPath}, {vtxPath}" : !hasVertices ? vvdPath : vtxPath;
@@ -157,6 +157,9 @@ public abstract partial class BaseMount
 	{
 		var virtualPath = Path.ChangeExtension( modelPath.Replace( '\\', '/' ), extension );
 		if ( TryOpenContentFile( virtualPath, out var stream ) )
+			return stream;
+		if ( extension.Equals( ".dx90.vtx", StringComparison.OrdinalIgnoreCase )
+			&& TryOpenContentFile( Path.ChangeExtension( modelPath, ".vtx" ), out stream ) )
 			return stream;
 
 		lock ( indexLock )

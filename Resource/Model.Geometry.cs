@@ -92,7 +92,8 @@ internal sealed partial class SourceModelBuilder
 
 					var material = materials.Get( mesh.Material, lod );
 					var renderMesh = new Mesh( material );
-					var morphBounds = mesh.NumFlexes > 0
+					var importMorphs = Host is not LambdaWarsMount lambdaWars || lambdaWars.FacialMorphsEnabled;
+					var morphBounds = mesh.NumFlexes > 0 && importMorphs
 						? AddMeshMorphs( mdl, mesh, originalToOutput, flexNames, renderMesh, uniqueVerts.Length, vertexTransforms )
 						: null;
 					AddBoneBounds( mdl, uniqueVerts, morphBounds, boneBounds );

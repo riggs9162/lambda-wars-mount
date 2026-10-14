@@ -13,6 +13,7 @@ public sealed class LambdaWarsMount : BaseMount
 	private string installationPath;
 	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) == "1";
 	internal bool MapsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_MAP_IMPORT" ) == "1";
+	internal bool FacialMorphsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_FACIAL_MORPHS" ) == "1";
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -109,7 +110,8 @@ public sealed class LambdaWarsMount : BaseMount
 			InstallationPath = installationPath,
 			IndexedFileCount = files.Count,
 			ModelsEnabled,
-			Diagnostic = files.Contains( companion, StringComparer.OrdinalIgnoreCase )
+			Diagnostic = (files.Contains( companion, StringComparer.OrdinalIgnoreCase )
+				|| files.Contains( "models/structures/resistance/billet.vtx", StringComparer.OrdinalIgnoreCase ))
 				? "Model companion-file check passed. 3D rendering still requires separate validation."
 				: $"Model companion-file check failed: {companion}. Check the installation path and restart the editor.",
 			Maps = maps

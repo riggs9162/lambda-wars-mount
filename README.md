@@ -4,6 +4,8 @@ Native Source 1 resource readers adapted from Facepunch's MIT-licensed `Sandbox.
 
 Original game assets are read from the Steam installation and are never copied by this project. Set `LAMBDA_WARS_GAME_PATH` to the original installation root or its `lambdawars` directory to override Steam discovery.
 
+Steam's registered installation is preferred by default. Both loose installations with `.dx90.vtx` model companions and Steam VPKs with `.vtx` companions are supported; the original model and texture identifiers stay unchanged.
+
 Build the production mount project with .NET 10 against your local engine:
 
 ```powershell
@@ -18,6 +20,7 @@ With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll
 - The content screen reports the installation path, indexed file count, map count and a model companion-file diagnostic. It stays open after indexing so failures can be read.
 - Loading original content also checks the basic roster sequentially without creating GPU resources. Model sidecars at `mount://lambda_wars/<original model path>.content.json` report geometry, skeletons, LODs, materials and texture dependencies. The content screen reports individual failures and the number of checked textures.
 - Both models and textures are checked before GPU conversion. Skeleton transforms, triangle indices, vertex/tangent values and bone weights are validated. Texture dimensions and formats are checked before pixel allocation, including all animation frames. Parsed model data is cached for the mount's lifetime.
+- Facial morph conversion is disabled by default after a reproducible infantry-preview GPU fault. `LAMBDA_WARS_ENABLE_FACIAL_MORPHS=1` is reserved for isolated diagnostics. This gate preserves base geometry, skeletons and textures; the fault's exact cause is not yet established.
 - `LambdaWarsContentAliases.cs` is the explicit table repairing the Combine HQ's outdated shield and fence material paths. It points to existing installed materials and leaves all source files untouched.
 - Lambda Wars uses the Alien Swarm VTX strip layout with 33-byte strip groups and 35-byte strips. The reader selects that layout for this mount while retaining the standard Source layout for other mounts.
 - Missing loose model companion index entries can be recovered read-only beside the indexed original model. Archive files keep their original archive lookup.
