@@ -17,9 +17,7 @@ internal sealed partial class TextureLoader
 		var isCube = vtf.FaceCount > 1;
 		var compressed = sourceFormat is VtfFormat.DXT1 or VtfFormat.DXT1_ONEBITALPHA
 			or VtfFormat.DXT3 or VtfFormat.DXT5;
-		// FindOrCreateTexture2 incorrectly adds render-target flags to multi-mip cubes.
-		// DXT cannot be a render target; decoding also preserves sub-4x4 authored mips.
-		var decompress = isCube && mipCount > 1 && compressed;
+		var decompress = compressed;
 		if ( decompress )
 		{
 			format = ImageFormat.RGBA8888;

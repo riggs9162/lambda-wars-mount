@@ -286,12 +286,6 @@ internal sealed partial class VtfFile
 	internal int GetTextureMipmapCount()
 	{
 		var count = (Header.Flags & VtfFlags.NOMIP) != 0 ? 1 : MipmapCount;
-		if ( FaceCount == 1 && ZSliceCount == 1
-			&& Header.HiResFormat is VtfFormat.DXT1 or VtfFormat.DXT1_ONEBITALPHA or VtfFormat.DXT3 or VtfFormat.DXT5 )
-		{
-			while ( count > 1 && (Header.Width >> (count - 1) < 4 || Header.Height >> (count - 1) < 4) )
-				count--;
-		}
 		return count;
 	}
 

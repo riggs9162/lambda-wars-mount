@@ -62,6 +62,9 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 			return default;
 		}
 
+		if ( mipCount > 1 )
+			return CreateStagedTexture( format, data, width, height, frameCount, isCube, mipCount );
+
 		if ( frameCount > 1 )
 		{
 			return new TextureArrayBuilder()
