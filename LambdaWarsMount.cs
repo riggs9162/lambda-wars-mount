@@ -64,6 +64,7 @@ public sealed class LambdaWarsMount : BaseMount
 			{
 				using var source = OpenContentFile( name );
 				var bsp = LambdaWarsBsp.ReadMetadata( source );
+				var staticProps = LambdaWarsStaticPropReader.Read( source );
 				var id = Path.GetFileNameWithoutExtension( name );
 				context.Add( ResourceType.Scene, name, new LambdaWarsMapLoader( name ) );
 				maps.Add( new
@@ -71,6 +72,8 @@ public sealed class LambdaWarsMount : BaseMount
 					Id = id,
 					Title = id[4..].Replace( '_', ' ' ),
 					Fingerprint = bsp.Fingerprint,
+					StaticPropCount = staticProps.PropCount,
+					StaticPropModelCount = staticProps.ModelCount,
                     Center = bsp.Bounds.Center,
                     HalfSize = bsp.Bounds.Size * 0.5f,
 					ScenePath = $"mount://{Ident}/{name}.scene",
