@@ -225,6 +225,9 @@ internal sealed partial class SourceModelBuilder
 		blend = new Color32( (byte)w0, (byte)w1, (byte)w2, 0 );
 	}
 
+	internal static void ValidateBlendWeights( StudioBoneWeight weights, int boneCount ) =>
+		GetBlendWeights( weights, boneCount, out _, out _ );
+
 	[StructLayout( LayoutKind.Sequential )]
 	public struct SkinnedVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blendIndices, Color32 blendWeights )
 	{

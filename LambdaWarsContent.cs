@@ -7,6 +7,18 @@ public abstract partial class BaseMount
 {
 	internal IReadOnlyList<string> IndexedContentFiles() => index.Files.Keys.ToArray();
 
+	internal void AddContentAlias( string original, string replacement )
+	{
+		lock ( indexLock )
+		{
+			if ( index.Files.ContainsKey( original ) || !index.Files.TryGetValue( replacement, out var source ) )
+				return;
+			index.Files.Add( original, source );
+			if ( FileTypes.TryGetValue( Path.GetExtension( original ), out var resource ) )
+				index.Resources.Add( (original, resource) );
+		}
+	}
+
 	internal void IndexMapPackage( byte[] bytes, MountContext context )
 	{
 		if ( bytes.Length == 0 )

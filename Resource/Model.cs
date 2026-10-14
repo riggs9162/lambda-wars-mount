@@ -9,6 +9,12 @@ internal sealed class ModelLoader( string fullPath ) : ResourceLoader<BaseMount>
 	{
 		if ( Host is LambdaWarsMount { ModelsEnabled: false } )
 			throw new InvalidDataException( "Original 3D model conversion is disabled pending GPU validation. Metadata and UI content remain available." );
+		if ( Host is LambdaWarsMount )
+		{
+			var report = LambdaWarsModelInfo.Inspect( Host, fullPath );
+			if ( !report.IsValid )
+				throw new InvalidDataException( $"Original model preflight failed: {fullPath}: {report.Error}" );
+		}
 		return Host.ReadSourceModel( fullPath ).Build( Path );
 	}
 }

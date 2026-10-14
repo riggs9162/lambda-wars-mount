@@ -12,6 +12,7 @@ public sealed class LambdaWarsMount : BaseMount
 	private string activePackage;
 	private string installationPath;
 	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) == "1";
+	internal bool MapsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_MAP_IMPORT" ) == "1";
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -41,13 +42,14 @@ public sealed class LambdaWarsMount : BaseMount
 			}
 		}
 		IndexContent( sources );
+		LambdaWarsContentAliases.Apply( this );
 		installationPath = Path.GetFullPath( directory );
 	}
 	protected override Task Mount( MountContext context )
 	{
 		var selectedMap = Environment.GetEnvironmentVariable( "LAMBDA_WARS_IMPORT_MAP" ) ?? "hlw_village";
 		var mapPath = $"maps/{selectedMap}.bsp";
-		if ( ModelsEnabled && IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )
+		if ( MapsEnabled && IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )
 		{
 			var selected = new LambdaWarsBsp( GetFileBytes( mapPath ) );
 			IndexMapPackage( selected.GetLump( 40 ), context );
@@ -97,6 +99,8 @@ public sealed class LambdaWarsMount : BaseMount
 			context.Add( ResourceType.Texture, name, new LambdaWarsImageLoader( name ) );
 
 		var files = IndexedContentFiles();
+		foreach ( var filename in files.Where( path => path.EndsWith( ".mdl", StringComparison.OrdinalIgnoreCase ) ) )
+			context.Add( ResourceType.GameResource, filename + ".content.json", new LambdaWarsModelInfoLoader( filename ) );
 		var companion = "models/structures/resistance/billet.dx90.vtx";
 		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new
 		{

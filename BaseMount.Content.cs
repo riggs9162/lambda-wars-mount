@@ -59,7 +59,12 @@ public abstract partial class BaseMount
 	internal SourceModel ReadSourceModel( string path )
 	{
 		lock ( indexLock )
-			return SourceModel.Read( this, path );
+		{
+			path = path.Replace( '\\', '/' );
+			if ( !index.ModelSources.TryGetValue( path, out var model ) )
+				index.ModelSources.Add( path, model = new Lazy<SourceModel>( () => SourceModel.Read( this, path ) ) );
+			return model.Value;
+		}
 	}
 
 	internal SourceTexture GetSourceTexture( string path )

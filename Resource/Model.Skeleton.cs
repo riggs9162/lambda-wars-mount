@@ -5,6 +5,12 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceModelBuilder
 {
+	internal static void ValidateSkeleton( MdlFile mdl, Transform[] referencePose )
+	{
+		if ( GetBoneTransforms( mdl, referencePose ).Any( transform => !transform.IsValid ) )
+			throw new InvalidDataException( "Original model contains an invalid skeleton transform." );
+	}
+
 	private static string[] AddSkeleton( ModelBuilder builder, MdlFile mdl,
 		BBox?[] boneBounds, Transform[] boneTransforms, bool parentLocal )
 	{

@@ -7,6 +7,17 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class TextureLoader( string filename, int? frame = 0 ) : ResourceLoader<BaseMount>
 {
+	internal static void ValidateSize( VtfFile vtf, string filename, int? frame )
+	{
+		if ( GetImageFormat( vtf.Header.HiResFormat ).Format == ImageFormat.None )
+			throw new NotSupportedException( $"Texture format {vtf.Header.HiResFormat} is unsupported: {filename}" );
+		var frames = frame.HasValue ? 1 : vtf.FrameCount;
+		if ( vtf.Header.Width < 1 || vtf.Header.Height < 1 || vtf.Header.Width > 4096 || vtf.Header.Height > 4096
+			|| frames < 1 || frames > 256 || vtf.ZSliceCount != 1
+			|| (long)vtf.Header.Width * vtf.Header.Height * frames * vtf.FaceCount > 16 * 1024 * 1024 )
+			throw new InvalidDataException( $"Texture exceeds the current import size limit: {filename}" );
+	}
+
 	internal static string FramePath( string filename, int? frame ) => frame switch
 	{
 		0 => $"{filename}.vtex",
@@ -36,9 +47,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		}
 		var isCube = vtf.FaceCount > 1;
 		var frameCount = frame.HasValue ? 1 : vtf.FrameCount;
-		if ( width < 1 || height < 1 || width > 4096 || height > 4096
-			|| frameCount < 1 || frameCount > 256 || (long)width * height * frameCount * (isCube ? 6 : 1) > 16 * 1024 * 1024 )
-			throw new InvalidDataException( $"Texture exceeds the current import size limit: {filename}" );
+		ValidateSize( vtf, filename, frame );
 		if ( !frame.HasValue && isCube )
 			throw new NotSupportedException( $"Animated cubemap VTF textures are not supported: {filename}" );
 		if ( frameCount > short.MaxValue )

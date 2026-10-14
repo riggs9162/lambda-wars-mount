@@ -69,6 +69,7 @@ public abstract partial class BaseMount
 		public readonly List<string> PropDataScripts = [];
 		public readonly Dictionary<string, Lazy<SourceMaterial>> MaterialSources = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, Lazy<SourceTexture>> TextureSources = new( StringComparer.OrdinalIgnoreCase );
+		public readonly Dictionary<string, Lazy<SourceModel>> ModelSources = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<Material, SourceMaterialVariant> MaterialVariants = new( ReferenceEqualityComparer.Instance );
 		public Texture CameraRenderTarget;
 
@@ -112,6 +113,7 @@ public abstract partial class BaseMount
 			foreach ( var source in MaterialSources.Values )
 				if ( source.IsValueCreated ) source.Value.Dispose();
 			TextureSources.Clear();
+			ModelSources.Clear();
 			MaterialSources.Clear();
 			MaterialVariants.Clear();
 			CameraRenderTarget?.Dispose();

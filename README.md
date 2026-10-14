@@ -14,14 +14,17 @@ With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll
 
 ## Current import limits
 
-- After the observed Vulkan device-loss crash, 3D model and scene conversion is disabled by default. Metadata, original menu artwork and HUD textures remain available. `LAMBDA_WARS_ENABLE_3D_IMPORT=1` enables controlled local GPU validation after restarting; it is not a claim that rendering is safe or complete.
+- After the observed Vulkan device-loss crashes, 3D model and scene conversion is disabled by default. Metadata, original menu artwork and HUD textures remain available. `LAMBDA_WARS_ENABLE_3D_IMPORT=1` enables controlled model GPU validation. Map conversion has a separate `LAMBDA_WARS_ENABLE_MAP_IMPORT=1` gate, so model validation never prepares a BSP package automatically. These switches are not claims that rendering is safe or complete.
 - The content screen reports the installation path, indexed file count, map count and a model companion-file diagnostic. It stays open after indexing so failures can be read.
+- Loading original content also checks the basic roster sequentially without creating GPU resources. Model sidecars at `mount://lambda_wars/<original model path>.content.json` report geometry, skeletons, LODs, materials and texture dependencies. The content screen reports individual failures and the number of checked textures.
+- Both models and textures are checked before GPU conversion. Skeleton transforms, triangle indices, vertex/tangent values and bone weights are validated. Texture dimensions and formats are checked before pixel allocation, including all animation frames. Parsed model data is cached for the mount's lifetime.
+- `LambdaWarsContentAliases.cs` is the explicit table repairing the Combine HQ's outdated shield and fence material paths. It points to existing installed materials and leaves all source files untouched.
 - Lambda Wars uses the Alien Swarm VTX strip layout with 33-byte strip groups and 35-byte strips. The reader selects that layout for this mount while retaining the standard Source layout for other mounts.
 - Missing loose model companion index entries can be recovered read-only beside the indexed original model. Archive files keep their original archive lookup.
 - Texture conversion rejects excessive dimensions, frame counts and aggregate pixels; mesh conversion checks triangle indices before allocating GPU buffers. These checks do not protect against every native engine or driver fault.
 - Original content loads only after the player selects Settings > Load Original Game Content.
 - Map catalog reads retain entity/model metadata and stream SHA-256 fingerprints without retaining entire BSP files.
-- Only one map's embedded package is prepared. `LAMBDA_WARS_IMPORT_MAP` chooses its original basename; the default is `hlw_village`.
+- When map conversion is explicitly enabled, only one map's embedded package is prepared. `LAMBDA_WARS_IMPORT_MAP` chooses its original basename; the default is `hlw_village`.
 - Embedded packages are limited to 64 MB uncompressed and 4,096 entries.
 - Scene loading checks resident memory between resources, allowing at most 512 MB growth and a 2 GB process ceiling, with a 20-second work budget. These checks cannot interrupt an individual native resource conversion or shader compilation already in progress.
 - Changing original maps requires restarting until map-specific resource teardown is implemented.

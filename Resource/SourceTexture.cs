@@ -53,6 +53,7 @@ internal sealed class SourceTexture : IDisposable
 			ObjectDisposedException.ThrowIf( disposed, this );
 			if ( frame.HasValue && (uint)frame.Value >= FrameCount )
 				throw new ArgumentOutOfRangeException( nameof( frame ), frame, $"VTF frame must be between 0 and {FrameCount - 1}." );
+			TextureLoader.ValidateSize( metadata, texturePath, frame );
 			var key = frame ?? -1;
 			if ( decodedFrames.TryGetValue( key, out var decoded ) ) return decoded;
 			using var stream = file.Open();
@@ -69,6 +70,7 @@ internal sealed class SourceTexture : IDisposable
 			ObjectDisposedException.ThrowIf( disposed, this );
 			if ( frame.HasValue && (uint)frame.Value >= FrameCount )
 				throw new ArgumentOutOfRangeException( nameof( frame ), frame, $"VTF frame must be between 0 and {FrameCount - 1}." );
+			TextureLoader.ValidateSize( metadata, texturePath, frame );
 			if ( decodedFrames.TryGetValue( frame ?? -1, out var decoded ) )
 				return decoded;
 			using var stream = file.Open();

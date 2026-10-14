@@ -9,7 +9,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 	protected override void BuildScene()
 	{
-		if ( !Host.ModelsEnabled )
+		if ( !Host.MapsEnabled )
 			throw new InvalidDataException( "Original 3D map conversion is disabled pending GPU validation." );
 		using var currentBudget = new LambdaWarsImportBudget();
 		budget = currentBudget;
