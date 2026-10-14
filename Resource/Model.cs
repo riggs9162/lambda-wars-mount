@@ -5,7 +5,12 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed class ModelLoader( string fullPath ) : ResourceLoader<BaseMount>
 {
-	protected override object Load() => Host.ReadSourceModel( fullPath ).Build( Path );
+	protected override object Load()
+	{
+		if ( Host is LambdaWarsMount { ModelsEnabled: false } )
+			throw new InvalidDataException( "Original 3D model conversion is disabled pending GPU validation. Metadata and UI content remain available." );
+		return Host.ReadSourceModel( fullPath ).Build( Path );
+	}
 }
 
 internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPath )

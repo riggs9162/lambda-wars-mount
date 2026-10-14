@@ -36,6 +36,9 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		}
 		var isCube = vtf.FaceCount > 1;
 		var frameCount = frame.HasValue ? 1 : vtf.FrameCount;
+		if ( width < 1 || height < 1 || width > 4096 || height > 4096
+			|| frameCount < 1 || frameCount > 256 || (long)width * height * frameCount * (isCube ? 6 : 1) > 16 * 1024 * 1024 )
+			throw new InvalidDataException( $"Texture exceeds the current import size limit: {filename}" );
 		if ( !frame.HasValue && isCube )
 			throw new NotSupportedException( $"Animated cubemap VTF textures are not supported: {filename}" );
 		if ( frameCount > short.MaxValue )

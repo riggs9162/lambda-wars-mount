@@ -10,6 +10,8 @@ public sealed class LambdaWarsMount : BaseMount
 	public override long AppId => 270370;
 	private readonly List<object> maps = new();
 	private string activePackage;
+	private string installationPath;
+	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) == "1";
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -39,12 +41,13 @@ public sealed class LambdaWarsMount : BaseMount
 			}
 		}
 		IndexContent( sources );
+		installationPath = Path.GetFullPath( directory );
 	}
 	protected override Task Mount( MountContext context )
 	{
 		var selectedMap = Environment.GetEnvironmentVariable( "LAMBDA_WARS_IMPORT_MAP" ) ?? "hlw_village";
 		var mapPath = $"maps/{selectedMap}.bsp";
-		if ( IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )
+		if ( ModelsEnabled && IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )
 		{
 			var selected = new LambdaWarsBsp( GetFileBytes( mapPath ) );
 			IndexMapPackage( selected.GetLump( 40 ), context );
@@ -93,7 +96,20 @@ public sealed class LambdaWarsMount : BaseMount
 		foreach ( var name in IndexedContentFiles().Where( path => path.StartsWith( "ui/", StringComparison.OrdinalIgnoreCase ) && Path.GetExtension( path ).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".gif" ) )
 			context.Add( ResourceType.Texture, name, new LambdaWarsImageLoader( name ) );
 
-		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new { Version = 1, Status = $"Original content mounted; {maps.Count} maps indexed. Map validation is required before play.", Maps = maps } ) ) );
+		var files = IndexedContentFiles();
+		var companion = "models/structures/resistance/billet.dx90.vtx";
+		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new
+		{
+			Version = 2,
+			Status = $"Original content mounted; {maps.Count} maps indexed. Map validation is required before play.",
+			InstallationPath = installationPath,
+			IndexedFileCount = files.Count,
+			ModelsEnabled,
+			Diagnostic = files.Contains( companion, StringComparer.OrdinalIgnoreCase )
+				? "Model companion-file check passed. 3D rendering still requires separate validation."
+				: $"Model companion-file check failed: {companion}. Check the installation path and restart the editor.",
+			Maps = maps
+		} ) ) );
         return Task.CompletedTask;
 	}
 

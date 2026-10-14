@@ -42,6 +42,9 @@ internal sealed partial class SourceModelBuilder
 					var vertices = vtx.GetVertices( bodyPartIndex, modelIndex, lod, meshIndex );
 					var indices = GC.AllocateUninitializedArray<int>( indexCount );
 					vtx.GetIndices( bodyPartIndex, modelIndex, lod, meshIndex, indices );
+					var availableVertices = Math.Min( vertices.Length, Math.Min( mesh.NumVertices, ushort.MaxValue + 1 ) );
+					if ( indices.Length % 3 != 0 || indices.Any( index => index < 0 || index >= availableVertices ) )
+						throw new InvalidDataException( $"{FullPath}: model mesh contains invalid triangle indices." );
 					var meshTangents = vtx.GetTangents( bodyPartIndex, modelIndex, lod, meshIndex );
 
 					var vertexCount = 0;
