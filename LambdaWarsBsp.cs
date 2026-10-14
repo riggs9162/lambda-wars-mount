@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -137,6 +137,3 @@ internal sealed class LambdaWarsBsp
 		return new( vector.x, vector.y, vector.z );
 	}
 }
-
-
-

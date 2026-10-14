@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 
 namespace Sandbox.Mounting.Source1;
@@ -432,7 +432,3 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		internal List<int> Indices { get; } = new();
 	}
 }
-
-
-
-

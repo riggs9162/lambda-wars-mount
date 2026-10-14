@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO.Compression;
 
 namespace Sandbox.Mounting.Source1;

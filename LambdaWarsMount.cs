@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Sandbox.Mounting.Source1;
 
@@ -122,7 +122,3 @@ internal sealed class LambdaWarsCatalogLoader( string json ) : ResourceLoader<La
 {
 	protected override object Load() => json;
 }
-
-
-
-
