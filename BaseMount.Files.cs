@@ -151,6 +151,28 @@ public abstract partial class BaseMount
 		throw new FileNotFoundException( $"File '{filename}' not found in {Title} content.", filename );
 	}
 
+	internal Stream OpenModelCompanion( string modelPath, string extension )
+	{
+		var virtualPath = Path.ChangeExtension( modelPath.Replace( '\\', '/' ), extension );
+		if ( TryOpenContentFile( virtualPath, out var stream ) )
+			return stream;
+
+		lock ( indexLock )
+		{
+			if ( index.Files.TryGetValue( modelPath.Replace( '\\', '/' ), out var model )
+				&& model.Package is null && model.Memory is null && Path.IsPathFullyQualified( model.Filename ) )
+			{
+				var physicalPath = Path.ChangeExtension( model.Filename, extension );
+				if ( File.Exists( physicalPath ) )
+				{
+					index.Files.TryAdd( virtualPath, new SourceFile( physicalPath, null ) );
+					return File.OpenRead( physicalPath );
+				}
+			}
+		}
+		throw new FileNotFoundException( $"Model companion '{virtualPath}' was not indexed or found beside its original model.", virtualPath );
+	}
+
 	internal Texture GetCameraRenderTarget()
 	{
 		lock ( indexLock )

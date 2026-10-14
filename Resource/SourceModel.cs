@@ -49,9 +49,9 @@ internal sealed class SourceModel( BaseMount mount, string path, (MdlFile Mdl, V
 		}
 		if ( mdl.TotalVertices == 0 )
 			return new SourceModel( mount, filename, (mdl, null, physics), referencePose );
-		using var vvdStream = mount.OpenContentFile( System.IO.Path.ChangeExtension( filename, ".vvd" ) );
-		using var vtxStream = mount.OpenContentFile( System.IO.Path.ChangeExtension( filename, ".dx90.vtx" ) );
+		using var vvdStream = mount.OpenModelCompanion( filename, ".vvd" );
+		using var vtxStream = mount.OpenModelCompanion( filename, ".dx90.vtx" );
 		var vvd = new VvdFile( vvdStream );
-		return new SourceModel( mount, filename, (mdl, new VtxFile( vtxStream, mdl, vvd ), physics), referencePose );
+		return new SourceModel( mount, filename, (mdl, new VtxFile( vtxStream, mdl, vvd, swarmLayout: mount is LambdaWarsMount ), physics), referencePose );
 	}
 }

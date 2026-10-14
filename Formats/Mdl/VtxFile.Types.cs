@@ -70,6 +70,22 @@ internal sealed partial class VtxFile
 		IsTriStrip = 2
 	}
 
+	[StructLayout( LayoutKind.Explicit, Size = 33 )]
+	private struct SwarmStripGroupHeader
+	{
+		[FieldOffset( 0 )] public StripGroupHeader Header;
+		[FieldOffset( 25 )] public int NumTopologyIndices;
+		[FieldOffset( 29 )] public int TopologyOffset;
+	}
+
+	[StructLayout( LayoutKind.Explicit, Size = 35 )]
+	private struct SwarmStripHeader
+	{
+		[FieldOffset( 0 )] public StripHeader Header;
+		[FieldOffset( 27 )] public int NumTopologyIndices;
+		[FieldOffset( 31 )] public int TopologyOffset;
+	}
+
 	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
 	private struct StripHeader
 	{

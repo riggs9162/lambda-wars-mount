@@ -19,7 +19,7 @@ internal sealed partial class VtxFile
 
 	public bool HasTangents { get; }
 
-	public VtxFile( Stream stream, MdlFile mdl, VvdFile vvd, int maxLods = 8 )
+	public VtxFile( Stream stream, MdlFile mdl, VvdFile vvd, int maxLods = 8, bool swarmLayout = false )
 	{
 		if ( !stream.CanSeek )
 			throw new InvalidDataException( "VTX parsing requires a seekable stream." );
@@ -127,7 +127,7 @@ internal sealed partial class VtxFile
 							meshData.VertexCount = meshVertexCount;
 
 							reader.BaseStream.Seek( mesh.StripGroupHeaderOffset, SeekOrigin.Current );
-							LumpReader<StripGroupHeader>.ReadLumpFromStream( reader.BaseStream, mesh.NumStripGroups, stripGroup =>
+							ReadStripGroups( reader.BaseStream, mesh.NumStripGroups, swarmLayout, stripGroup =>
 							{
 								var start = reader.BaseStream.Position;
 								reader.BaseStream.Seek( start + stripGroup.VertOffset, SeekOrigin.Begin );
@@ -143,11 +143,11 @@ internal sealed partial class VtxFile
 								var indices = LumpReader<ushort>.ReadLumpFromStream( reader.BaseStream, stripGroup.NumIndices );
 
 								reader.BaseStream.Seek( start + stripGroup.StripOffset, SeekOrigin.Begin );
-								LumpReader<StripHeader>.ReadLumpFromStream( reader.BaseStream, stripGroup.NumStrips, strip =>
+								ReadStrips( reader.BaseStream, stripGroup.NumStrips, swarmLayout, strip =>
 								{
 									if ( strip.IndexOffset < 0 || strip.NumIndices < 0 || strip.IndexOffset > indices.Length - strip.NumIndices
 										|| strip.VertOffset < 0 || strip.NumVerts < 0 || strip.VertOffset > verts.Length - strip.NumVerts )
-										throw new InvalidDataException( "VTX strip range is outside its strip group." );
+										throw new InvalidDataException( $"VTX strip range is outside its strip group: indices {strip.IndexOffset}+{strip.NumIndices}/{indices.Length}, vertices {strip.VertOffset}+{strip.NumVerts}/{verts.Length}." );
 									if ( strip.Flags != StripHeaderFlags.IsTriList && strip.Flags != StripHeaderFlags.IsTriStrip )
 										throw new InvalidDataException( "Unsupported VTX strip topology." );
 									if ( strip.Flags == StripHeaderFlags.IsTriList && strip.NumIndices % 3 != 0 )
