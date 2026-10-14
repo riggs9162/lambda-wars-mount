@@ -12,15 +12,16 @@ internal sealed partial class SourceModelBuilder
 	}
 
 	private static string[] AddSkeleton( ModelBuilder builder, MdlFile mdl,
-		BBox?[] boneBounds, Transform[] boneTransforms )
+		BBox?[] boneBounds, Transform[] boneTransforms, bool parentLocal )
 	{
-		var bones = CreateSkeletonBones( mdl, boneBounds, boneTransforms );
+		var bones = CreateSkeletonBones( mdl, boneBounds, boneTransforms, parentLocal );
 		if ( bones.Length > 0 )
 			builder.AddBones( bones );
 		return bones.Select( bone => bone.Name ).ToArray();
 	}
 
-	internal static ModelBuilder.Bone[] CreateSkeletonBones( MdlFile mdl, BBox?[] boneBounds, Transform[] boneTransforms )
+	/// <summary>Uses the installed engine's model-space bind contract for rendered geometry and parent-space transforms for geometry-free skeletons.</summary>
+	internal static ModelBuilder.Bone[] CreateSkeletonBones( MdlFile mdl, BBox?[] boneBounds, Transform[] boneTransforms, bool parentLocal = false )
 	{
 		var boneNames = new string[mdl.Bones.Length];
 		var bones = new ModelBuilder.Bone[mdl.Bones.Length];
@@ -32,7 +33,7 @@ internal sealed partial class SourceModelBuilder
 		for ( int i = 0; i < mdl.Bones.Length; i++ )
 		{
 			var bone = mdl.Bones[i];
-			var transform = bone.Parent != -1
+			var transform = parentLocal && bone.Parent != -1
 				? boneTransforms[bone.Parent].ToLocal( boneTransforms[i] )
 				: boneTransforms[i];
 			bones[i] = new ModelBuilder.Bone(
