@@ -19,6 +19,7 @@ internal sealed class LambdaWarsStaticPropPreflightReport
 	public long VertexCount { get; init; }
 	public long InstanceVertexCount { get; init; }
 	public int MaterialCount { get; init; }
+	public IReadOnlyList<string> MaterialPaths { get; init; } = [];
 	public int TextureCount => Textures.Count;
 	public long EstimatedDecodedTextureBytes { get; init; }
 	public IReadOnlyList<LambdaWarsTextureEstimate> Textures { get; init; } = [];
@@ -101,6 +102,7 @@ internal static class LambdaWarsStaticPropPreflight
 			VertexCount = vertices,
 			InstanceVertexCount = instanceVertices,
 			MaterialCount = materials.Count,
+			MaterialPaths = materials.OrderBy( path => path, StringComparer.OrdinalIgnoreCase ).ToArray(),
 			EstimatedDecodedTextureBytes = textures.Values.Sum( texture => texture.DecodedRgbaBytes ),
 			Textures = textures.Values.OrderBy( texture => texture.Path, StringComparer.OrdinalIgnoreCase ).ToArray(),
 			Failures = failures.ToArray()
