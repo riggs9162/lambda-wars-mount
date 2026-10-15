@@ -18,6 +18,8 @@ internal sealed class LambdaWarsContentPathReceipt
 	public string ResolvedPath { get; init; } = "";
 	public string Source { get; init; } = "None";
 	public bool RestartRequired { get; init; }
+	public bool ReloadRequired { get; init; }
+	public bool SupportsLiveReload => true;
 	public bool IsAvailable { get; init; }
 	public string Status { get; init; } = "";
 	public string ConfigurationPath { get; init; } = "";
@@ -29,7 +31,7 @@ internal sealed class LambdaWarsConfigurationLoader( string steamInstallationPat
 	private string lastRequestId;
 	private string lastReceipt;
 
-	protected override object Load()
+	protected override async Task<object> LoadAsync()
 	{
 		if ( !apply )
 			return Json.Serialize( Receipt( "", true, false, "" ) );
@@ -44,7 +46,7 @@ internal sealed class LambdaWarsConfigurationLoader( string steamInstallationPat
 			if ( request.RequestId == lastRequestId )
 				return lastReceipt;
 
-			LambdaWarsInstallation.SaveManualPath( request.Path );
+			await Host.StageInstallationAsync( request.Path );
 			lastRequestId = request.RequestId;
 			lastReceipt = Json.Serialize( Receipt( request.RequestId, true, true, "" ) );
 			return lastReceipt;
@@ -63,8 +65,8 @@ internal sealed class LambdaWarsConfigurationLoader( string steamInstallationPat
 		var status = selection.Status;
 		if ( restartRequired )
 			status = string.IsNullOrWhiteSpace( saved )
-				? "Manual path cleared. Restart s&box to detect the installation again."
-				: $"Installation path saved. Restart s&box to use: {selection.InstallationPath}";
+				? "Manual path cleared. Applying Steam installation detection."
+				: $"Installation path validated. Applying: {selection.InstallationPath}";
 
 		return new()
 		{
@@ -75,7 +77,8 @@ internal sealed class LambdaWarsConfigurationLoader( string steamInstallationPat
 			ActiveInstallationPath = active,
 			ResolvedPath = selection.InstallationPath,
 			Source = selection.Source,
-			RestartRequired = restartRequired || !string.Equals( active, selection.InstallationPath, StringComparison.OrdinalIgnoreCase ),
+			RestartRequired = false,
+			ReloadRequired = restartRequired || !string.Equals( active, selection.InstallationPath, StringComparison.OrdinalIgnoreCase ),
 			IsAvailable = selection.IsAvailable,
 			Status = success ? status : "Installation path was not changed.",
 			ConfigurationPath = selection.ConfigurationPath

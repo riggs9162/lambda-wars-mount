@@ -18,12 +18,14 @@ internal sealed class LambdaWarsMapOverview
 	public float Zoom { get; init; } = 1;
 	public string Error { get; init; } = "";
 
-	internal static LambdaWarsMapOverview Read( LambdaWarsMount mount, string mapId )
+	internal static LambdaWarsMapOverview Read( LambdaWarsMount mount, string mapId ) => Read( mount.OpenContentFile, mount.Ident, mapId );
+
+	internal static LambdaWarsMapOverview Read( Func<string, Stream> open, string ident, string mapId )
 	{
 		try
 		{
 			var path = $"maps/{mapId}.res";
-			using var settings = mount.OpenContentFile( path );
+			using var settings = open( path );
 			if ( settings.Length > 64 * 1024 )
 				throw new InvalidDataException( "The original overview settings exceed 64 KB." );
 			using var text = new StreamReader( settings, Encoding.UTF8 );
@@ -37,7 +39,7 @@ internal sealed class LambdaWarsMapOverview
 				throw new InvalidDataException( "The original overview material path is invalid." );
 
 			var texture = $"materials/{material}.vtf";
-			using var source = mount.OpenContentFile( texture );
+			using var source = open( texture );
 			var header = VtfFile.ReadHeader( source );
 			var originX = Number( values, "pos_x" );
 			var originY = Number( values, "pos_y" );
@@ -52,7 +54,7 @@ internal sealed class LambdaWarsMapOverview
 
 			return new()
 			{
-				IsValid = true, TexturePath = $"mount://{mount.Ident}/{texture}.vtex", OriginX = originX,
+				IsValid = true, TexturePath = $"mount://{ident}/{texture}.vtex", OriginX = originX,
 				OriginY = originY, UnitsPerPixel = scale, Width = header.Width, Height = header.Height,
 				Rotate = rotate != 0, Zoom = zoom
 			};

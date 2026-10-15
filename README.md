@@ -2,7 +2,7 @@
 
 Native Source 1 resource readers adapted from Facepunch's MIT-licensed `Sandbox.Mounting.Source1` implementation in [sbox-public](https://github.com/Facepunch/sbox-public). The accompanying license applies to the upstream readers and shaders. `LambdaWars*` files add installation discovery, map metadata and BSP scene reconstruction.
 
-Original game assets are read from the installed game and are never copied by this project. Settings provides a manual content path accepting either the installation root or its `lambdawars` directory. Saving validates the directory and takes effect after restarting; clearing the path restores automatic Steam discovery.
+Original game assets are read from the installed game and are never copied by this project. Settings provides a manual content path accepting either the installation root or its `lambdawars` directory. Applying stages a new file index before refreshing the mount in the menu or lobby; clearing the path restores automatic Steam discovery. The engine needs one restart when installing a new mount DLL, but content paths and map selection do not.
 
 Steam's registered installation is preferred by default. An explicitly saved manual path overrides discovery; `LAMBDA_WARS_GAME_PATH` remains a fallback when no valid installation is otherwise available. Manual configuration is stored locally in `%LOCALAPPDATA%/LambdaWarsSbox/content.json` and is never replicated to other players. Both loose installations with `.dx90.vtx` model companions and Steam VPKs with `.vtx` companions are supported; the original model and texture identifiers stay unchanged.
 
@@ -22,7 +22,7 @@ With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll
 
 - Map metadata includes CPU-only static-prop version 9 checks and prop/model counts. Village contains 637 props using 88 model entries; Chemical Plant contains 1,787 props using 100 entries. This preflight does not enable static-prop rendering or establish playable maps.
 - Map conversion retains a 512 MB process-memory growth budget and a 20-second work budget. Windows physical-memory checks require at least 2 GB or 10 percent of total RAM, whichever is larger, to remain free. The editor's existing memory use does not count as new import growth.
-- Original model rendering is enabled by default after CPU content checks. Authored texture mip levels use individual uploads and GPU copies to avoid the failing bulk upload path. The basic 16-model roster has been rendered in the Steam editor; this does not establish complete map or standalone support. `LAMBDA_WARS_ENABLE_3D_IMPORT=0` disables models for troubleshooting. Map conversion retains a separate `LAMBDA_WARS_ENABLE_MAP_IMPORT=1` gate, so model loading never prepares a BSP package automatically.
+- Original model rendering is enabled by default after CPU content checks. Authored texture mip levels use individual uploads and GPU copies to avoid the failing bulk upload path. The basic 16-model roster has been rendered in the Steam editor; this does not establish complete map or standalone support. `LAMBDA_WARS_ENABLE_3D_IMPORT=0` disables models for troubleshooting. Map loading is enabled by default; `LAMBDA_WARS_ENABLE_MAP_IMPORT=0` disables it for troubleshooting. Model loading alone never prepares a BSP package.
 - The content screen reports the installation path, indexed file count, map count and a model companion-file diagnostic. It stays open after indexing so failures can be read.
 - Loading original content also checks the basic roster sequentially without creating GPU resources. Model sidecars at `mount://lambda_wars/<original model path>.content.json` report geometry, skeletons, LODs, materials and texture dependencies. The content screen reports individual failures and the number of checked textures.
 - Both models and textures are checked before GPU conversion. Skeleton transforms, triangle indices, vertex/tangent values and bone weights are validated. Texture dimensions and formats are checked before pixel allocation, including all animation frames. Parsed model data is cached for the mount's lifetime.
@@ -33,10 +33,10 @@ With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll
 - Texture conversion rejects excessive dimensions, frame counts and aggregate pixels; mesh conversion checks triangle indices before allocating GPU buffers. These checks do not protect against every native engine or driver fault.
 - Original content loads only after the player selects Settings > Load Original Game Content.
 - Map catalog reads retain entity/model metadata and stream SHA-256 fingerprints without retaining entire BSP files.
-- When map conversion is explicitly enabled, only one map's embedded package is prepared. `LAMBDA_WARS_IMPORT_MAP` chooses its original basename; the default is `hlw_village`.
-- Embedded packages are limited to 64 MB uncompressed and 4,096 entries.
+- A selected map gets a fresh installation index with its embedded resources taking precedence. No BSP package is loaded at startup unless `LAMBDA_WARS_IMPORT_MAP` explicitly selects one.
+- Embedded packages are limited to 64 MiB uncompressed and 4,096 entries. Unsafe paths and case-insensitive duplicates reject the entire package before it changes the index.
 - Scene loading estimates a bounded memory-growth allowance from validated texture payloads, with a 2 GB growth ceiling and a 20-second work budget. The system must retain at least 2 GB or 10 percent of physical RAM, whichever is larger. These checks cannot interrupt an individual native resource conversion or shader compilation already in progress.
-- Changing original maps requires restarting until map-specific resource teardown is implemented.
+- Before changing scenes, every human connection and spectator prepares its selected map and acknowledges its fingerprint. The host waits for these acknowledgements, then waits separately for collision, navigation and roster validation. Content path changes are rejected during a battlefield.
 - The original maps remain validation-gated. Loading metadata is not proof of a playable map.
 
 Source shaders under `Assets/shaders/source1` are engine implementation code rather than original-game artwork. Do not run concurrent shader compilation, map loading or game instances during validation.

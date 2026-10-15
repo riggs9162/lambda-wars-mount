@@ -12,9 +12,10 @@ public abstract partial class BaseMount : BaseGameMount
 	protected abstract string ContentDirectory { get; }
 
 	private volatile FileIndex index = new();
+	internal FileIndex CurrentIndex => index;
 	private readonly object indexLock = new();
 
-	private readonly record struct ResourceFactory( ResourceType Type, Func<string, Sandbox.Mounting.ResourceLoader> Create );
+	internal readonly record struct ResourceFactory( ResourceType Type, Func<string, Sandbox.Mounting.ResourceLoader> Create );
 
 	private static readonly Dictionary<string, ResourceFactory> FileTypes = new( StringComparer.OrdinalIgnoreCase )
 	{
@@ -43,11 +44,15 @@ public abstract partial class BaseMount : BaseGameMount
 	internal void IndexContent( string directory ) => IndexContent( ScanContent( directory ) );
 
 	internal void IndexContent( IEnumerable<ContentSource> sources )
+		=> InstallContentIndex( PrepareContentIndex( sources ) );
+
+	internal FileIndex PrepareContentIndex( IEnumerable<ContentSource> sources )
 	{
 		var next = new FileIndex();
 		try
 		{
 			IndexSources( next, sources );
+			PrepareTextureFrames( next );
 			var unavailable = next.RemoveUnavailableModels();
 			if ( unavailable.Count > 0 )
 			{
@@ -56,14 +61,21 @@ public abstract partial class BaseMount : BaseGameMount
 				Log.Trace( $"{Title}: skipped {unavailable.Count} models with unavailable geometry. {string.Join( "; ", unavailable.Take( 3 ) )}"
 					+ (unavailable.Count > 3 ? "; remaining details are logged at trace verbosity." : "") );
 			}
-			ReplaceIndex( next );
-			IsInstalled = next.Resources.Count > 0;
+			var prepared = next;
 			next = null;
+			return prepared;
 		}
 		finally
 		{
 			next?.Dispose();
 		}
+	}
+
+	internal void InstallContentIndex( FileIndex prepared )
+	{
+		ArgumentNullException.ThrowIfNull( prepared );
+		ReplaceIndex( prepared );
+		IsInstalled = prepared.Resources.Count > 0;
 	}
 
 	private void ReplaceIndex( FileIndex next )
@@ -115,17 +127,38 @@ public abstract partial class BaseMount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
+	internal static void PrepareTextureFrames( FileIndex files )
+	{
+		foreach ( var resource in files.Resources.Where( value => value.Factory.Type == ResourceType.Texture ) )
+		{
+			if ( files.TextureFrames.ContainsKey( resource.Path ) || files.TextureFrameErrors.ContainsKey( resource.Path ) )
+				continue;
+			try
+			{
+				using var stream = files.Files[resource.Path].Open();
+				var header = VtfFile.ReadHeader( stream );
+				files.TextureFrames[resource.Path] = (header.Frames, (header.Flags & VtfFlags.ENVMAP) != 0);
+				files.TextureFrameErrors.Remove( resource.Path );
+			}
+			catch ( Exception exception ) when ( exception is IOException or InvalidDataException or NotSupportedException )
+			{
+				files.TextureFrameErrors[resource.Path] = exception.Message;
+			}
+		}
+	}
+
 	private void MountTextureFrames( MountContext context, FileIndex files, string path )
 	{
 		try
 		{
-			using var stream = files.Files[path].Open();
-			var header = VtfFile.ReadHeader( stream );
+			if ( files.TextureFrameErrors.TryGetValue( path, out var error ) )
+				throw new InvalidDataException( error );
+			var header = files.TextureFrames[path];
 			if ( header.Frames == 0 )
 				throw new InvalidDataException( "VTF frame count is zero." );
 			for ( var frame = 1; frame < header.Frames; frame++ )
 				context.Add( ResourceType.Texture, TextureLoader.FramePath( path, frame ), new TextureLoader( path, frame ) );
-			if ( header.Frames > 1 && (header.Flags & VtfFlags.ENVMAP) == 0 )
+			if ( header.Frames > 1 && !header.IsEnvironment )
 				context.Add( ResourceType.Texture, TextureLoader.FramePath( path, null ), new TextureLoader( path, null ) );
 		}
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException )

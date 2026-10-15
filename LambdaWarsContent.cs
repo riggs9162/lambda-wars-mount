@@ -19,33 +19,50 @@ public abstract partial class BaseMount
 		}
 	}
 
-	internal void IndexMapPackage( byte[] bytes, MountContext context )
+	internal void IndexMapPackage( byte[] bytes ) => IndexMapPackage( index, bytes );
+
+	internal static void IndexMapPackage( FileIndex target, byte[] bytes )
 	{
 		if ( bytes.Length == 0 )
 			return;
 
 		using var stream = new MemoryStream( bytes, false );
 		using var archive = new ZipArchive( stream, ZipArchiveMode.Read );
-		var size = archive.Entries.Sum( entry => entry.Length );
-		if ( size > 64 * 1024 * 1024 || archive.Entries.Count > 4096 )
-			throw new InvalidDataException( "This map's embedded content exceeds the current import memory budget." );
+		const long limit = 64 * 1024 * 1024;
+		if ( archive.Entries.Count > 4096 )
+			throw new InvalidDataException( "This map's embedded content exceeds 4096 files." );
+		var files = new Dictionary<string, SourceFile>( StringComparer.OrdinalIgnoreCase );
+		long total = 0;
 		foreach ( var entry in archive.Entries )
 		{
-			var path = entry.FullName.Replace( '\\', '/' ).TrimStart( '/' );
-			if ( path.Split( '/' ).Any( part => part is "." or ".." ) || entry.Length == 0 )
+			var path = entry.FullName.Replace( '\\', '/' );
+			if ( string.IsNullOrWhiteSpace( path ) || path.StartsWith( '/' ) || path.Contains( ':' ) || path.Contains( '\0' )
+				|| path.Split( '/' ).Any( part => part is "." or ".." ) )
+				throw new InvalidDataException( $"Invalid embedded resource path: {path}" );
+			if ( path.EndsWith( '/' ) )
 				continue;
-
+			if ( entry.Length < 0 || entry.Length > limit - total )
+				throw new InvalidDataException( "This map's embedded content exceeds the 64 MiB import budget." );
+			total += entry.Length;
+			var data = new byte[(int)entry.Length];
 			using var input = entry.Open();
-			using var output = new MemoryStream();
-			input.CopyTo( output );
-			if ( !index.Files.TryAdd( path, new SourceFile( path, null, output.ToArray() ) ) )
-				continue;
+			input.ReadExactly( data );
+			if ( input.ReadByte() != -1 || !files.TryAdd( path, new SourceFile( path, null, data ) ) )
+				throw new InvalidDataException( $"Duplicate or oversized embedded resource: {path}" );
+		}
 
-			if ( FileTypes.TryGetValue( Path.GetExtension( path ), out var resource ) )
-			{
-				index.Resources.Add( (path, resource) );
-				context.Add( resource.Type, path, resource.Create( path ) );
-			}
+		foreach ( var file in files )
+		{
+			target.Files[file.Key] = file.Value;
+			target.TextureFrames.Remove( file.Key );
+			target.TextureFrameErrors.Remove( file.Key );
+			if ( !FileTypes.TryGetValue( Path.GetExtension( file.Key ), out var resource ) )
+				continue;
+			var position = target.Resources.FindIndex( value => value.Path.Equals( file.Key, StringComparison.OrdinalIgnoreCase ) );
+			if ( position >= 0 )
+				target.Resources[position] = (file.Key, resource);
+			else
+				target.Resources.Add( (file.Key, resource) );
 		}
 	}
 }

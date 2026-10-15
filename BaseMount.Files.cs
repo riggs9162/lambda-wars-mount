@@ -55,10 +55,12 @@ public abstract partial class BaseMount
 			? directoryArchive : path;
 	}
 
-	private sealed class FileIndex : IDisposable
+	internal sealed class FileIndex : IDisposable
 	{
 		public readonly object SourceScope = new();
 		public readonly List<VpkArchive> Packages = [];
+		public readonly Dictionary<string, (int Frames, bool IsEnvironment)> TextureFrames = new( StringComparer.OrdinalIgnoreCase );
+		public readonly Dictionary<string, string> TextureFrameErrors = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, SourceFile> Files = new( StringComparer.OrdinalIgnoreCase );
 		public readonly List<(string Path, ResourceFactory Factory)> Resources = [];
 		public readonly Dictionary<string, SourceSurfaceDefinition> Surfaces = new( StringComparer.OrdinalIgnoreCase );

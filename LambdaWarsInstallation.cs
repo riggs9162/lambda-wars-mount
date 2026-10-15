@@ -30,15 +30,28 @@ public static class LambdaWarsInstallation
 		=> Resolve( steamPath, environmentPath, configurationPath, LambdaWarsSteamDiscovery.FindInstallation );
 
 	internal static LambdaWarsInstallationResolution Resolve( string steamPath, string environmentPath, string configurationPath, Func<LambdaWarsSteamDiscoveryResult> discoverSteam )
+		=> ResolveCore( steamPath, environmentPath, configurationPath, discoverSteam, true );
+
+	internal static LambdaWarsInstallationResolution ResolveCandidate( string candidate, string steamPath, string environmentPath )
+	{
+		if ( string.IsNullOrWhiteSpace( candidate ) )
+			return ResolveCore( steamPath, environmentPath, ConfigurationPath, LambdaWarsSteamDiscovery.FindInstallation, false );
+		if ( !TryValidate( candidate, out var normalized, out var error ) )
+			throw new InvalidDataException( error );
+		return Selection( normalized, normalized, "Manual", new List<string>(), ConfigurationPath );
+	}
+
+	private static LambdaWarsInstallationResolution ResolveCore( string steamPath, string environmentPath, string configurationPath,
+		Func<LambdaWarsSteamDiscoveryResult> discoverSteam, bool readConfiguration )
 	{
 		var configured = "";
 		var errors = new List<string>();
 		try
 		{
-			if ( System.IO.Directory.Exists( configurationPath ) )
+			if ( readConfiguration && System.IO.Directory.Exists( configurationPath ) )
 				throw new InvalidDataException( "The content settings path points to a folder instead of a JSON file." );
 
-			if ( File.Exists( configurationPath ) )
+			if ( readConfiguration && File.Exists( configurationPath ) )
 			{
 				if ( new FileInfo( configurationPath ).Length > 64 * 1024 )
 					throw new InvalidDataException( "The content settings file exceeds 64 KB." );
