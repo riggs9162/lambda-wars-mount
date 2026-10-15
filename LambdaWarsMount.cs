@@ -188,6 +188,13 @@ public sealed class LambdaWarsMount : BaseMount
 					StaticPropModelCount = staticProps.ModelCount,
 					Center = bsp.Bounds.Center,
 					HalfSize = bsp.Bounds.Size * 0.5f,
+					CameraBounds = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) == "func_map_boundary"
+						&& entity.GetValueOrDefault( "StartDisabled", "0" ) != "1" ).Select( entity =>
+						{
+							var bounds = bsp.EntityBounds( entity );
+							var bloat = LambdaWarsEntityNumbers.Read( entity.GetValueOrDefault( "bloat", "-32" ) );
+							return new BBox( bounds.Mins - Vector3.One * bloat, bounds.Maxs + Vector3.One * bloat );
+						} ).Where( bounds => bounds.Size.x > 0 && bounds.Size.y > 0 && bounds.Size.z > 0 ).ToArray(),
 					ScenePath = $"mount://{Ident}/{name}.scene",
 					PreviewPath = overview.IsValid ? overview.TexturePath : "",
 					Overview = overview,

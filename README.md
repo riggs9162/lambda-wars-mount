@@ -68,6 +68,8 @@ Roster preparation also runs when gameplay scene services start, so a fresh prov
 
 ## Map catalog compatibility
 
+The catalog exports enabled `func_map_boundary` volumes with their authored `bloat` inset. Camera movement and zoom keep both the focus and camera position inside one player region, including during smoothing and rotation. Camera focus height follows starting-ground elevations rather than the full BSP world's vertical center. Maps without authored player regions retain the world-bounds fallback.
+
 Collision hulls clip authored brush faces against their half-spaces, including bevel planes, instead of enumerating every plane triple. Brushes with up to 1,024 sides are supported within the existing import time and memory budgets. This removes the 64-side rejection affecting Slums, Slums Winter, Abandoned, City 16, Dump, Jungle, Meltdown, Metro, and Waste. Their world collision models have been built in the engine; Slums also passed ground traces at both starting positions.
 
 The installed 36-map catalog passes CPU validation of BSP geometry metadata, static and entity prop dependencies, materials, and texture payloads. VMT parsing accepts unquoted numeric bracket vectors separately from platform conditions. The largest validated map requires 2,496 MiB under the existing upload-headroom estimate, so scene conversion permits up to 3 GiB of growth while retaining the physical-memory reserve. CPU validation does not establish rendered, collision, navigation, or multiplayer readiness for every map; the runtime readiness checks still apply.
