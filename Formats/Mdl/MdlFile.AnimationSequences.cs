@@ -11,6 +11,7 @@ internal sealed partial class MdlFile
 		public bool Looping => (Flags & 1) != 0;
 		public int GridWidth { get; init; }
 		public int GridHeight { get; init; }
+		public int CyclePoseIndex { get; init; }
 		public int ParameterX { get; init; }
 		public int ParameterY { get; init; }
 		public float[] KeysX { get; init; }
@@ -18,6 +19,27 @@ internal sealed partial class MdlFile
 		public float[] BoneWeights { get; init; }
 		public int AutoLayerCount { get; init; }
 		public int IkLockCount { get; init; }
+	}
+
+	internal string[] ReadPoseParameterNames(Stream stream)
+	{
+		if (_header.NumLocalPoseParams is < 0 or > 256)
+			throw new InvalidDataException("Invalid pose parameter count.");
+		using var data = new ReferencePoseData(stream, 0, _header.Length);
+		return Enumerable.Range(0, _header.NumLocalPoseParams).Select(index =>
+		{
+			var offset = _header.LocalPoseParamOffset + index * 20L;
+			return ReadOptionalRelativeString(stream, offset, data.Int(offset));
+		}).ToArray();
+	}
+
+	internal (float Minimum, float Maximum) ReadPoseParameterRange(Stream stream, int index)
+	{
+		if ((uint)index >= _header.NumLocalPoseParams)
+			throw new InvalidDataException("Invalid cycle pose parameter index.");
+		using var data = new ReferencePoseData(stream, 0, _header.Length);
+		var offset = _header.LocalPoseParamOffset + index * 20L;
+		return (data.Float(offset + 8), data.Float(offset + 12));
 	}
 
 	internal SequenceDescriptor[] ReadSequenceDescriptors(Stream stream)
@@ -84,6 +106,7 @@ internal sealed partial class MdlFile
 			{
 				GridWidth = sequence.GroupSize,
 				GridHeight = sequence.GroupSize2,
+				CyclePoseIndex = sequence.CyclePoseIndex,
 				ParameterX = sequence.ParamIndex,
 				ParameterY = sequence.ParamIndex2,
 				KeysX = Keys(sequence.GroupSize, 0, sequence.ParamStart, sequence.ParamEnd),

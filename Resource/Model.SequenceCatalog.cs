@@ -31,6 +31,7 @@ internal sealed partial class SourceModelBuilder
 		const long maximumPoseBytes = 256L * 1024 * 1024;
 		var clips = new List<PreparedAnimationClip>();
 		var entries = new List<SourceSequenceEntry>();
+		var trackData = new List<SourceSequenceTrack>();
 		var tracks = new Dictionary<(string Path, int Index), string>();
 		var failures = new Dictionary<(string Path, int Index), string>();
 		var animationNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -39,6 +40,7 @@ internal sealed partial class SourceModelBuilder
 		foreach (var included in mdl.ReadIncludedSequences(modelPath, openFile))
 		{
 			var sequence = included.Sequence;
+			using var sequenceStream = openFile(included.ModelPath);
 			var entry = new SourceSequenceEntry
 			{
 				Name = sequence.Name,
@@ -55,6 +57,31 @@ internal sealed partial class SourceModelBuilder
 				BoneWeights = new float[mdl.BoneCount]
 			};
 			entries.Add(entry);
+			try
+			{
+				entry.PoseParameters = included.Model.ReadPoseParameterNames(sequenceStream);
+				if ((sequence.Flags & 0x80) != 0)
+				{
+					var range = included.Model.ReadPoseParameterRange(sequenceStream, sequence.CyclePoseIndex);
+					entry.CycleParameter = entry.PoseParameters[sequence.CyclePoseIndex];
+					entry.CycleMinimum = range.Minimum;
+					entry.CycleMaximum = range.Maximum;
+				}
+				entry.Layers = included.Model.ReadSequenceAutoLayers(sequenceStream, sequence.Index).Select(layer => new SourceSequenceLayer
+				{
+					SequenceIndex = layer.SequenceIndex,
+					PoseParameterIndex = layer.PoseParameterIndex,
+					Flags = layer.Flags,
+					Start = layer.Start,
+					Peak = layer.Peak,
+					Tail = layer.Tail,
+					End = layer.End
+				}).ToArray();
+			}
+			catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
+			{
+				entry.Error = exception.Message;
+			}
 			for (var bone = 0; bone < included.RootBoneIndices.Length; bone++)
 			{
 				if (included.RootBoneIndices[bone] >= 0)
@@ -113,24 +140,41 @@ internal sealed partial class SourceModelBuilder
 						var name = $"__source_track_{tracks.Count}";
 						clips.Add(new(name, sequence.Activity, descriptor.Fps, descriptor.Looping, first.Additive, false, frames));
 						tracks.Add(key, name);
+						var metadata = new SourceSequenceTrack
+						{
+							Name = name,
+							FrameCount = descriptor.FrameCount,
+							FramesPerSecond = descriptor.Fps,
+							Flags = descriptor.Flags,
+							MovementDistance = first.Movements.Length == 0 ? 0 : first.Movements[^1].Position.Length
+						};
+						try
+						{
+							metadata.Ik = mdl.ExportTrackIk(included, blend, modelPath, openFile);
+						}
+						catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
+						{
+							metadata.IkError = exception.Message;
+						}
+						trackData.Add(metadata);
 						names.Add(name);
 						allocated += bytes;
 					}
-					catch (Exception exception) when (exception is IOException or NotSupportedException)
+					catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
 					{
 						failures[key] = exception.Message;
 						throw;
 					}
 				}
 			}
-			catch (Exception exception) when (exception is IOException or NotSupportedException)
+			catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
 			{
 				entry.Error = exception.Message;
 			}
 
 			entry.Tracks = names.ToArray();
 			entry.PendingOperations = pending.ToArray();
-			if (entry.Error.Length == 0 && names.Count == 1 && animationNames.Add(sequence.Name))
+			if (names.Count == 1 && sequence.AnimationIndices.Length == 1 && animationNames.Add(sequence.Name))
 			{
 				var track = clips.First(clip => clip.Name == names[0]);
 				entry.AnimationName = sequence.Name;
@@ -138,8 +182,13 @@ internal sealed partial class SourceModelBuilder
 			}
 		}
 
-		return (clips.ToArray(), new SourceSequenceCatalog { Sequences = entries.ToArray() });
+		return (clips.ToArray(), new SourceSequenceCatalog
+		{
+			Sequences = entries.ToArray(),
+			Tracks = trackData.ToArray(),
+			BoneNames = Enumerable.Range(0, mdl.BoneCount).Select(mdl.GetBoneName).ToArray(),
+			BoneParents = mdl.Bones.Select(bone => bone.Parent).ToArray(),
+			BindPose = mdl.Bones.Select(bone => new Transform(bone.Position, bone.Quaternion)).ToArray()
+		});
 	}
 }
-
-

@@ -31,10 +31,25 @@ internal sealed partial class MdlFile
 			var target = data.Short(start);
 			var pose = data.Short(start + 2);
 			var flags = data.Int(start + 4);
-			var begin = data.Float(start + 8);
-			var peak = data.Float(start + 12);
-			var tail = data.Float(start + 16);
-			var end = data.Float(start + 20);
+			if (target < 0 || target >= _header.NumLocalSeq)
+				throw new InvalidDataException("Invalid sequence auto-layer target.");
+			var begin = BitConverter.Int32BitsToSingle(data.Int(start + 8));
+			var peak = BitConverter.Int32BitsToSingle(data.Int(start + 12));
+			var tail = BitConverter.Int32BitsToSingle(data.Int(start + 16));
+			var end = BitConverter.Int32BitsToSingle(data.Int(start + 20));
+			if (float.IsNaN(begin) && float.IsNaN(peak) && float.IsNaN(tail) && float.IsNaN(end))
+			{
+				var targetOffset = _header.LocalSeqIndex + (long)target * System.Runtime.InteropServices.Marshal.SizeOf<StudioSeqDesc>();
+				stream.Position = targetOffset;
+				var targetSequence = LumpReader<StudioSeqDesc>.ReadSingleFromStream(stream);
+				var staticPose = Enumerable.Range(0, targetSequence.NumBlends).All(blend =>
+					GetAnimationDescriptor(stream, data.Short(targetOffset + targetSequence.AnimIndexIndex + blend * 2L)).FrameCount == 1);
+				if (!staticPose && (targetSequence.Flags & 0x180) == 0)
+					throw new NotSupportedException("A time-driven animation layer has a non-finite influence interval.");
+				begin = peak = tail = end = 0;
+			}
+			if (!float.IsFinite(begin) || !float.IsFinite(peak) || !float.IsFinite(tail) || !float.IsFinite(end))
+				throw new InvalidDataException("Non-finite sequence auto-layer influence interval.");
 			if (target < 0 || target >= _header.NumLocalSeq || (begin != end && (begin > peak || peak > tail || tail > end)))
 			{
 				throw new InvalidDataException("Invalid sequence auto-layer target or influence interval.");

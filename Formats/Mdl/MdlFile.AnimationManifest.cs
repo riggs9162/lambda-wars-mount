@@ -49,6 +49,36 @@ internal sealed partial class MdlFile
 		return result;
 	}
 
+	internal SourceAnimationManifest ExportTrackIk(IncludedSequence included, int blend, string modelPath, Func<string, Stream> openFile)
+	{
+		using var stream = openFile(included.ModelPath);
+		var index = included.Sequence.AnimationIndices[blend];
+		var descriptor = included.Model.GetAnimationDescriptor(stream, index);
+		var raw = included.Model.ReadRawAnimationFrame(stream, index, 0, openFile);
+		var offset = included.Model.AnimationDescriptorOffset(index);
+		stream.Position = offset;
+		var animation = LumpReader<StudioAnimDesc>.ReadSingleFromStream(stream);
+		if (raw.IkRuleCount == 0 || animation.IkRuleIndex == 0 && animation.AnimBlockIkRuleIndex == 0)
+			return null;
+
+		var result = new SourceAnimationManifest
+		{
+			ModelPath = modelPath,
+			SourceModelPath = included.ModelPath,
+			SequenceName = included.Sequence.Name,
+			SequenceFlags = included.Sequence.Flags,
+			AnimationIndex = index,
+			AnimationFlags = descriptor.Flags,
+			FrameCount = descriptor.FrameCount,
+			FramesPerSecond = descriptor.Fps,
+			BoneNames = Enumerable.Range(0, BoneCount).Select(GetBoneName).ToArray(),
+			BoneParents = Bones.Select(bone => bone.Parent).ToArray(),
+			SourceToRootBones = included.RootBoneIndices
+		};
+		included.Model.ExportLosslessIk(stream, index, included.RootBoneIndices, openFile, result);
+		return result;
+	}
+
 	private void ExportLosslessIk(Stream stream, int animationIndex, int[] mapping, Func<string, Stream> openFile, SourceAnimationManifest output)
 	{
 		var budget = new AnimationManifestByteBudget();
@@ -121,9 +151,12 @@ internal sealed partial class MdlFile
 						{
 							var valid = data.Byte(run);
 							var total = data.Byte(run + 1);
-							if (valid == 0 || total == 0 || valid > total)
-							{
+							if (valid > total)
 								throw new InvalidDataException("Invalid original IK compressed error run.");
+							if (total == 0)
+							{
+								run += 2;
+								break;
 							}
 
 							covered += total;
@@ -141,9 +174,23 @@ internal sealed partial class MdlFile
 				}
 
 				var attachment = data.Int(record + 120);
-				if (attachment != 0)
+				if (attachment != 0 && data.Int(record + 4) == 5)
 				{
-					throw new NotSupportedException("The pistol idle slice cannot export external attachment targets.");
+					var name = new List<byte>();
+					for (var character = 0; character < 4096; character++)
+					{
+						var value = data.Byte(record + attachment + character);
+						if (value == 0)
+						{
+							rule.Attachment = System.Text.Encoding.UTF8.GetString(name.ToArray());
+							break;
+						}
+						if (value < 32)
+							throw new InvalidDataException("Invalid IK attachment name.");
+						name.Add(value);
+					}
+					if (rule.Attachment.Length == 0 && name.Count != 0)
+						throw new InvalidDataException("Unterminated IK attachment name.");
 				}
 
 				output.Rules[index] = rule;
