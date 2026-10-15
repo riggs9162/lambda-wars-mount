@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Sandbox.Mounting.Source1;
 
@@ -24,13 +25,25 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 		catch
 		{
-			importScene.Destroy();
+			_ = DestroyFailedScene( importScene );
 			throw;
 		}
 		finally
 		{
 			Host.ActiveMapImportBudget = null;
 			budget = null;
+		}
+	}
+
+	/// <summary>Releases a failed import after the scene loader has dispatched its queued component callbacks.</summary>
+	private static async Task DestroyFailedScene( Scene scene )
+	{
+		await Task.Yield();
+		await GameTask.MainThread();
+		if ( scene.IsValid() )
+		{
+			using ( scene.Push() )
+				scene.Destroy();
 		}
 	}
 
@@ -264,9 +277,12 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			var renderer = prop.Components.Create<SkinnedModelRenderer>();
 			renderer.UseAnimGraph = false;
 			renderer.Model = model;
-			var collider = prop.Components.Create<ModelCollider>();
-			collider.Model = model;
-			collider.Static = true;
+			if ( entity.GetValueOrDefault( "solid", "6" ) != "0" )
+			{
+				var collider = prop.Components.Create<ModelCollider>();
+				collider.Model = model;
+				collider.Static = true;
+			}
 		}
 	}
 
@@ -306,8 +322,12 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			var brush = new GameObject( true, entity.GetValueOrDefault( "targetname", classname ) );
 			brush.WorldPosition = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
 			brush.WorldRotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) );
-			brush.Components.Create<ModelRenderer>().Model = model;
-			if ( classname != "func_illusionary" )
+			var renderer = brush.Components.Create<ModelRenderer>();
+			renderer.Model = model;
+			var disabled = classname == "func_brush" && entity.GetValueOrDefault( "StartDisabled", "0" ) != "0";
+			renderer.Enabled = !disabled;
+			var solidity = entity.GetValueOrDefault( "Solidity", "0" );
+			if ( classname != "func_illusionary" && (classname != "func_brush" || solidity != "1" && (!disabled || solidity == "2")) )
 			{
 				var collider = brush.Components.Create<ModelCollider>();
 				collider.Model = model;
@@ -384,9 +404,6 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			renderer.Model = model;
 			if ( model.MaterialGroupCount > 0 )
 			{
-				if ( source.Skin >= model.MaterialGroupCount )
-					throw new InvalidDataException( $"Static prop skin {source.Skin} is unavailable: {source.ModelPath}" );
-
 				renderer.MaterialGroup = $"Skin {source.Skin}";
 			}
 
