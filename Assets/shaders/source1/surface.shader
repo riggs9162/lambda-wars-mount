@@ -11,6 +11,7 @@ FEATURES
 	Feature( F_SOURCE_TEXTURE_ANIMATION, 0..1, "Source 1" );
 	Feature( F_SOURCE_FRAMEBUFFER, 0..1, "Source 1" );
 	Feature( F_SOURCE_VORTWARP, 0..1, "Source 1" );
+	Feature( F_SOURCE_TERRAIN_BLEND, 0..1, "Source 1" );
 	Feature( F_ALPHA_TEST, 0..1, "Transparency" );
 	Feature( F_TRANSLUCENT, 0..1, "Transparency" );
 	FeatureRule( Requires1( F_ADDITIVE_BLEND, F_TRANSLUCENT ), "Additive requires translucency" );
@@ -85,6 +86,7 @@ PS
 	StaticCombo( S_ADDITIVE_BLEND, F_ADDITIVE_BLEND, Sys( ALL ) );
 	StaticCombo( S_SOURCE_UNLIT, F_SOURCE_UNLIT, Sys( ALL ) );
 	StaticCombo( S_SOURCE_FRAMEBUFFER, F_SOURCE_FRAMEBUFFER, Sys( ALL ) );
+	StaticCombo( S_SOURCE_TERRAIN_BLEND, F_SOURCE_TERRAIN_BLEND, Sys( ALL ) );
 
 	#define BLEND_MODE_ALREADY_SET
 	// sbox_pixel supplies culling; suppress the duplicate declaration in vr_common_ps_code.
@@ -156,6 +158,20 @@ PS
 	Texture2D g_tSourceWarpEmission < Channel( RGBA, Box( SourceWarpEmission ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
 	float g_flSourceWarpEmission < Default( 0 ); >;
 	Texture2D g_tTexture2 < Channel( RGBA, Box( SourceTexture2 ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;
+	SamplerState g_sTerrainNormal2 < Attribute( "g_tTerrainNormal2Sampler" ); Filter( ANISO ); AddressU( WRAP ); AddressV( WRAP ); >;
+	SamplerState g_sTerrainModulation < Attribute( "g_tTerrainModulationSampler" ); Filter( ANISO ); AddressU( WRAP ); AddressV( WRAP ); >;
+	CreateInputTexture2D( TerrainNormal2, Linear, 8, "None", "_normal", "Source 1", Default4( 0.5, 0.5, 1, 1 ) );
+	CreateInputTexture2D( TerrainModulation, Linear, 8, "None", "_mask", "Source 1", Default4( 0.5, 0.5, 0, 1 ) );
+	Texture2D g_tTerrainNormal2 < Channel( RGBA, Box( TerrainNormal2 ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
+	Texture2D g_tTerrainModulation < Channel( RGBA, Box( TerrainModulation ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
+	float g_flSourceTerrainNormal2 < Default( 0 ); >;
+	float g_flSourceTerrainSsBump2 < Default( 0 ); >;
+	int g_nSourceTerrainNormalEncoding2 < Default( 0 ); >;
+	float g_flSourceTerrainModulation < Default( 0 ); >;
+	float g_flSourceTerrainMasked < Default( 0 ); >;
+	float3 g_vSourceTerrainMaskTransformU < Default3( 1, 0, 0 ); >;
+	float3 g_vSourceTerrainMaskTransformV < Default3( 0, 1, 0 ); >;
+	float3 g_vSourceTerrainMaskScroll < Default3( 0, 0, 1 ); >;
 	float g_flSourceMonitor < Default( 0 ); >;
 	float3 g_vSourceMonitorContrast < Default3( 0, 0, 0 ); >;
 	float3 g_vSourceMonitorSaturation < Default3( 1, 1, 1 ); >;
@@ -348,6 +364,24 @@ PS
 		#else
 			float4 baseColor = g_tColor.Sample( g_sColor, SourceFrameUv( baseUv, i.flSourceFrame ) );
 		#endif
+		#if S_SOURCE_TERRAIN_BLEND
+			float2 terrainUv = SourceUv( uv, g_vSourceTexture2TransformU, g_vSourceTexture2TransformV, g_vSourceTexture2Scroll );
+			float terrainBlend = g_flSourceTerrainMasked > 0.5 ? 0.5 : saturate( i.vSourceColor.a );
+			if ( g_flSourceTerrainModulation > 0.5 )
+			{
+				float2 maskUv = SourceUv( uv, g_vSourceTerrainMaskTransformU, g_vSourceTerrainMaskTransformV, g_vSourceTerrainMaskScroll );
+				float2 modulation = g_tTerrainModulation.Sample( g_sTerrainModulation, maskUv ).rg;
+				float minimum = modulation.y - modulation.x;
+				float maximum = modulation.y + modulation.x;
+				if ( g_flSourceTerrainMasked < 0.5 )
+				{
+					minimum = max( 0, minimum );
+					maximum = min( 1, maximum );
+				}
+				terrainBlend = minimum != maximum ? smoothstep( minimum, maximum, terrainBlend ) : step( minimum, terrainBlend );
+			}
+			baseColor = lerp( baseColor, g_tTexture2.Sample( g_sTexture2, terrainUv ), terrainBlend );
+		#endif
 		if ( g_flSourceMonitor > 0.5 )
 		{
 			float2 secondUv = SourceUv( uv, g_vSourceTexture2TransformU, g_vSourceTexture2TransformV, g_vSourceTexture2Scroll );
@@ -365,6 +399,15 @@ PS
 		normalTexel.a = lerp( 1, normalTexel.a, saturate( g_vSourceTextureAlphaPresence.z ) );
 		float3 normal = g_flSourceHasNormal > 0.5
 			? SourceNormal( normalTexel, g_flSourceSsBump, g_flSourceNormalScale, g_nSourceNormalEncoding ) : float3( 0, 0, 1 );
+
+		#if S_SOURCE_TERRAIN_BLEND
+			if ( g_flSourceTerrainNormal2 > 0.5 )
+			{
+				float4 secondNormal = g_tTerrainNormal2.Sample( g_sTerrainNormal2, normalUv );
+				normal = normalize( lerp( normal, SourceNormal( secondNormal, g_flSourceTerrainSsBump2, g_flSourceNormalScale, g_nSourceTerrainNormalEncoding2 ), terrainBlend ) );
+				normalTexel.a = lerp( normalTexel.a, secondNormal.a, terrainBlend );
+			}
+		#endif
 
 
 		float4 color = baseColor;
