@@ -112,6 +112,8 @@ public abstract partial class BaseMount : BaseGameMount
 		}
 
 		MountDecals( context, current );
+		if (this is LambdaWarsMount)
+			MountSoundEvents(context, current);
 		try
 		{
 			MountSurfaces( context, current );

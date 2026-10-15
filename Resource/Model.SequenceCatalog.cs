@@ -59,6 +59,7 @@ internal sealed partial class SourceModelBuilder
 			entries.Add(entry);
 			try
 			{
+				entry.Events = included.Model.ReadSequenceEvents(sequenceStream, sequence.Index);
 				entry.PoseParameters = included.Model.ReadPoseParameterNames(sequenceStream);
 				if ((sequence.Flags & 0x80) != 0)
 				{

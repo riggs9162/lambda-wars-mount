@@ -34,6 +34,7 @@ public sealed class SourceSequenceEntry
 	public float[] BoneWeights { get; set; } = [];
 	public string[] Tracks { get; set; } = [];
 	public string[] PoseParameters { get; set; } = [];
+	public SourceSequenceEvent[] Events { get; set; } = [];
 	public SourceSequenceLayer[] Layers { get; set; } = [];
 	public string[] PendingOperations { get; set; } = [];
 	public string Error { get; set; } = "";
@@ -60,4 +61,12 @@ public sealed class SourceSequenceTrack
 	public float MovementDistance { get; set; }
 	public SourceAnimationManifest Ik { get; set; }
 	public string IkError { get; set; } = "";
+}
+
+public sealed class SourceSequenceEvent
+{
+	public float Cycle { get; set; }
+	public int Id { get; set; }
+	public string Name { get; set; } = "";
+	public string Options { get; set; } = "";
 }
