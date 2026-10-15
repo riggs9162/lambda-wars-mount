@@ -11,12 +11,21 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	{
 		if ( !Host.MapsEnabled )
 			throw new InvalidDataException( "Original 3D map conversion is disabled pending GPU validation." );
-		using var currentBudget = new LambdaWarsImportBudget();
-		budget = currentBudget;
-		Host.ActiveMapImportBudget = currentBudget;
+		var importScene = Game.ActiveScene;
 		try
 		{
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false );
+			GC.WaitForPendingFinalizers();
+			GC.Collect( GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false );
+			using var currentBudget = new LambdaWarsImportBudget();
+			budget = currentBudget;
+			Host.ActiveMapImportBudget = currentBudget;
 			BuildPreparedScene();
+		}
+		catch
+		{
+			importScene.Destroy();
+			throw;
 		}
 		finally
 		{
@@ -31,7 +40,6 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		var bsp = prepared.Bsp;
 		var staticProps = prepared.StaticProps;
 		budget.ReserveResources( prepared.DecodedUploadBytes );
-		GC.Collect( GC.MaxGeneration, GCCollectionMode.Optimized, blocking: true, compacting: false );
 		var model = LoadRegisteredGeometry( 0 );
 		var world = new GameObject( true, filename );
 		world.Components.Create<ModelRenderer>().Model = model;

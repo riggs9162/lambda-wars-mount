@@ -7,6 +7,14 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class TextureLoader( string filename, int? frame = 0 ) : ResourceLoader<BaseMount>
 {
+	private Texture createdTexture;
+
+	protected override void Shutdown()
+	{
+		createdTexture?.Dispose();
+		createdTexture = null;
+	}
+
 	internal static void ValidateSize( VtfFile vtf, string filename, int? frame )
 	{
 		if ( GetImageFormat( vtf.Header.HiResFormat ).Format == ImageFormat.None )
@@ -30,6 +38,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		var texture = CreateTexture( Host.GetSourceTexture( filename ).ReadTexture( frame ), Path, frame );
 		if ( texture is null || !texture.IsValid || texture.IsError )
 			throw new InvalidDataException( $"Texture '{filename}' frame {frame} could not be loaded." );
+		createdTexture = texture;
 		return texture;
 	}
 
