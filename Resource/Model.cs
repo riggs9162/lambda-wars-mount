@@ -68,6 +68,7 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 		AddMetadata( builder, mdl, boneNames );
 		AddHitboxes( builder, mdl, boneNames );
 		AddGameData( builder, mdl, physics );
+		AddOriginalAnimations( builder, mdl );
 
 		builder.WithViewBounds( viewBounds );
 		var result = builder.Create();
