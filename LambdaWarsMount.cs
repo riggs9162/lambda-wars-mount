@@ -231,6 +231,7 @@ public sealed class LambdaWarsMount : BaseMount
 		context.Add( ResourceType.GameResource, "configuration-apply.json", new LambdaWarsConfigurationLoader( steamInstallationPath, () => installationPath, true ) );
 		context.Add( ResourceType.GameResource, "map-selection.json", new LambdaWarsMapSelectionLoader() );
 		context.Add( ResourceType.GameResource, "progress.json", new LambdaWarsProgressLoader() );
+		context.Add( ResourceType.GameResource, "map-preparation.json", new LambdaWarsMapPreparationLoader() );
 		var selectedMap = requestedMap ?? Environment.GetEnvironmentVariable( "LAMBDA_WARS_IMPORT_MAP" );
 		var mapPath = $"maps/{selectedMap}.bsp";
 		if ( MapsEnabled && IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )

@@ -52,14 +52,7 @@ internal sealed class LambdaWarsImportBudget : IDisposable
 	/// <summary>Reserves bounded staging, cache and native allocation headroom from validated texture payloads while retaining the system RAM reserve.</summary>
 	internal void ReserveResources( long decodedUploadBytes )
 	{
-		if ( decodedUploadBytes < 0 )
-			throw new ArgumentOutOfRangeException( nameof( decodedUploadBytes ) );
-
-		const long allocationBlock = 64L * 1024 * 1024;
-		var estimate = checked(decodedUploadBytes * 4 + 256L * 1024 * 1024);
-		var requested = Math.Max( growthLimit, checked((estimate + allocationBlock - 1) / allocationBlock * allocationBlock) );
-		if ( requested > 3L * 1024 * 1024 * 1024 )
-			throw new InvalidDataException( "Original map resource estimates exceed the 3 GB import growth ceiling." );
+		var requested = ResourceGrowthLimit( decodedUploadBytes );
 
 		var memory = LambdaWarsImportMemory.Read();
 		var reserve = LambdaWarsImportMemory.Reserve( memory.Total );
@@ -73,6 +66,28 @@ internal sealed class LambdaWarsImportBudget : IDisposable
 		Log.Info( $"Original map import: reserving {growthLimit / (1024 * 1024)} MB of memory growth for {decodedUploadBytes / (1024 * 1024)} MB of validated texture payloads" );
 		nextMemoryCheck = TimeSpan.Zero;
 		Check();
+	}
+
+	internal bool HasResourceHeadroom( long decodedUploadBytes )
+	{
+		var requested = ResourceGrowthLimit( decodedUploadBytes );
+		var memory = LambdaWarsImportMemory.Read();
+		var reserve = LambdaWarsImportMemory.Reserve( memory.Total );
+		process.Refresh();
+		var remaining = Math.Max( 0, requested - Math.Max( 0, process.WorkingSet64 - initialResident ) );
+		return memory.Available >= reserve && (ulong)remaining <= memory.Available - reserve;
+	}
+
+	private long ResourceGrowthLimit( long decodedUploadBytes )
+	{
+		if ( decodedUploadBytes < 0 )
+			throw new ArgumentOutOfRangeException( nameof( decodedUploadBytes ) );
+		const long allocationBlock = 64L * 1024 * 1024;
+		var estimate = checked(decodedUploadBytes * 4 + 256L * 1024 * 1024);
+		var requested = Math.Max( growthLimit, checked((estimate + allocationBlock - 1) / allocationBlock * allocationBlock) );
+		if ( requested > 3L * 1024 * 1024 * 1024 )
+			throw new InvalidDataException( "Original map resource estimates exceed the 3 GB import growth ceiling." );
+		return requested;
 	}
 
 	/// <summary>Records bounded import progress and elapsed time at resource preparation boundaries.</summary>
