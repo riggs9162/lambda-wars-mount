@@ -8,6 +8,8 @@ Steam's registered installation is preferred by default. An explicitly saved man
 
 On Windows, automatic discovery also checks Steam's registry entries read-only, then follows `steamapps/libraryfolders.vdf` and `appmanifest_270370.acf` to the registered game directory. It checks both machine registry views and the current user's Steam path; no registry values are modified.
 
+The mount is a separately installed engine extension. Its direct file and registry access is not part of the sandboxed game assembly; game-side settings use `FileSystem.Data` and registered mount resources. The [API whitelist](https://sbox.game/dev/doc/code/code-basics/api-whitelist) blocks ordinary game code from unrestricted .NET file access. Editor validation does not establish platform distribution support. Keep the game whitelist enabled: a clean non-editor run with external content and a supported mount deployment remain release gates, and standalone-only mode must not be enabled automatically.
+
 Build the production mount project with .NET 10 against your local engine:
 
 ```powershell
