@@ -430,7 +430,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			var contents = reader.ReadInt32();
 			if ( (contents & 0x3000b) == 0 || sideCount < 4 )
 				continue;
-			if ( sideCount > 64 )
+			if ( sideCount > 1024 )
 				throw new InvalidDataException( "A collision brush exceeds the current import work budget." );
 
 			var sides = new (Vector3 Normal, float Distance)[sideCount];
@@ -440,47 +440,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				sides[side] = planes[reader.ReadUInt16()];
 			}
 
-			var hull = new List<Vector3>();
-			for ( var a = 0; a < sideCount - 2; a++ )
-			{
-				for ( var b = a + 1; b < sideCount - 1; b++ )
-				{
-					for ( var c = b + 1; c < sideCount; c++ )
-					{
-						var cross = sides[b].Normal.Cross( sides[c].Normal );
-						var determinant = sides[a].Normal.Dot( cross );
-						if ( MathF.Abs( determinant ) < 0.00001f )
-							continue;
-
-						var point = (cross * sides[a].Distance + sides[c].Normal.Cross( sides[a].Normal ) * sides[b].Distance + sides[a].Normal.Cross( sides[b].Normal ) * sides[c].Distance) / determinant;
-						var inside = true;
-						for ( var side = 0; side < sides.Length; side++ )
-						{
-							if ( sides[side].Normal.Dot( point ) - sides[side].Distance <= 0.1f )
-								continue;
-
-							inside = false;
-							break;
-						}
-
-						if ( !inside )
-							continue;
-
-						var duplicate = false;
-						for ( var vertex = 0; vertex < hull.Count; vertex++ )
-						{
-							if ( hull[vertex].DistanceSquared( point ) >= 0.01f )
-								continue;
-
-							duplicate = true;
-							break;
-						}
-
-						if ( !duplicate )
-							hull.Add( point );
-					}
-				}
-			}
+			var hull = LambdaWarsBrushHull.Build( sides, budget.Check );
 			if ( hull.Count >= 4 )
 				builder.AddCollisionHull( hull );
 		}
