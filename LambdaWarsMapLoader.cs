@@ -209,9 +209,9 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				reader.BaseStream.Position = bsp.Lumps[33].Offset + (firstVertex + y * side + x) * 20;
 				point += LambdaWarsBsp.ReadVector( reader ) * reader.ReadSingle();
 				var authoredAlpha = reader.ReadSingle();
-				if ( !float.IsFinite( authoredAlpha ) || authoredAlpha is < 0 or > 255 )
-					throw new InvalidDataException( "Displacement blend alpha must be finite and between 0 and 255." );
-				group.Vertices.Add( MakeVertex( point, normal, info, data, authoredAlpha / 255.0f ) );
+				if ( !float.IsFinite( authoredAlpha ) )
+					throw new InvalidDataException( "Displacement blend alpha must be finite." );
+				group.Vertices.Add( MakeVertex( point, normal, info, data, Math.Clamp( authoredAlpha / 255.0f, 0, 1 ) ) );
 				collisionVertices.Add( point );
 			}
 		}
