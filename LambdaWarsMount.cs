@@ -74,6 +74,7 @@ public sealed class LambdaWarsMount : BaseMount
 				var bsp = LambdaWarsBsp.ReadMetadata( source );
 				var staticProps = LambdaWarsStaticPropReader.Read( source );
 				var id = Path.GetFileNameWithoutExtension( name );
+				var overview = LambdaWarsMapOverview.Read( this, id );
 				context.Add( ResourceType.Scene, name, new LambdaWarsMapLoader( name ) );
 				maps.Add( new
 				{
@@ -85,7 +86,8 @@ public sealed class LambdaWarsMount : BaseMount
                     Center = bsp.Bounds.Center,
                     HalfSize = bsp.Bounds.Size * 0.5f,
 					ScenePath = $"mount://{Ident}/{name}.scene",
-					PreviewPath = $"mount://{Ident}/materials/vgui/maps/{id}.vtf.vtex",
+					PreviewPath = overview.IsValid ? overview.TexturePath : "",
+					Overview = overview,
 					Starts = bsp.Starts.Select( start => new { start.OwnerNumber, start.GroupName, start.Position, start.Rotation } ).ToArray(),
 										Entities = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) is "control_point" or "trigger_capture_area" or "scrap_marker" or "scrap_marker_small" )
 						.Select( entity => new
