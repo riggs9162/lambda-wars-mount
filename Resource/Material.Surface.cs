@@ -19,6 +19,7 @@ internal sealed partial class SourceMaterialBuilder
 			throw new NotSupportedException( $"{FullPath}: framebuffer textures do not support frames or animation." );
 		var color = framebuffer ? null : Load( "$basetexture", "$frame" );
 		var normal = Load( "$bumpmap", "$bumpframe" );
+		var teamMask = modelSurface ? Load( "$teamcolormap" ) : null;
 		var detail = Load( "$detail", "$detailframe" );
 		var selfIllumMask = parameters.Boolean( "$selfillum" ) ? Load( "$selfillummask" ) : null;
 		var exponent = skin ? Load( "$phongexponenttexture" ) : null;
@@ -86,6 +87,7 @@ internal sealed partial class SourceMaterialBuilder
 		material.SetFeature( "F_SOURCE_VORTWARP", warp ? 1 : 0 );
 
 		Bind( color, "g_tColor" );
+		Bind( teamMask, "g_tSourceTeamMask", "g_flSourceHasTeamMask" );
 		Bind( normal, "g_tNormal", "g_flSourceHasNormal" );
 		Bind( detail, "g_tDetail", "g_flSourceHasDetail" );
 		Bind( selfIllumMask, "g_tSelfIllumMask", "g_flSourceHasSelfIllumMask" );

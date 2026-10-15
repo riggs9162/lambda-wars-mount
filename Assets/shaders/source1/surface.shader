@@ -197,6 +197,9 @@ PS
 	float3 g_vSourceEnvMaskScroll < Default3( 0, 0, 1 ); >;
 
 	float3 g_vSourceColorTint < Default3( 1, 1, 1 ); >;
+	float3 g_vSourceTeamColor < Attribute( "SourceTeamColor" ); Default3( 1, 1, 1 ); >;
+	float g_flSourceHasTeamMask < Default( 0 ); >;
+	Texture2D g_tSourceTeamMask < Attribute( "g_tSourceTeamMask" ); SrgbRead( false ); >;
 	float g_flSourceAlphaTestReference < Default( 0.5 ); >;
 	float g_flSourceUseBaseAlpha < Default( 1 ); >;
 	float g_flSourceBlendTintByBaseAlpha < Default( 0 ); >;
@@ -391,6 +394,11 @@ PS
 		}
 		baseColor.a = lerp( 1, baseColor.a, saturate( g_vSourceTextureAlphaPresence.x ) );
 		bool blendTint = SourceUsesBlendTint();
+		if ( g_flSourceHasTeamMask > 0.5 )
+		{
+			float coverage = g_tSourceTeamMask.Sample( g_sColor, baseUv ).r;
+			baseColor.rgb *= lerp( float3( 1, 1, 1 ), SrgbGammaToLinear( g_vSourceTeamColor ), coverage );
+		}
 		if ( !blendTint )
 			baseColor.rgb *= g_vSourceColorTint;
 		float4 normalTexel = float4( 0.5, 0.5, 1, 1 );

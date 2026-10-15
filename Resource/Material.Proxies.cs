@@ -45,6 +45,7 @@ internal sealed partial class SourceMaterialBuilder
 			if ( !proxy.IsBlock || !(proxy.Name.Equals( "TextureScroll", StringComparison.OrdinalIgnoreCase )
 				|| proxy.Name.Equals( "Sine", StringComparison.OrdinalIgnoreCase )
 				|| proxy.Name.Equals( "AnimatedTexture", StringComparison.OrdinalIgnoreCase )
+				|| proxy.Name.Equals( "TeamColor", StringComparison.OrdinalIgnoreCase )
 				|| (shader is "core" or "vortwarp" && proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase ))
 				|| (shader is "aftershock" or "volumeclouds" && proxy.Name.Equals( "CurrentTime", StringComparison.OrdinalIgnoreCase ))
 				|| (shader == "water" && proxy.Name.Equals( "WaterLOD", StringComparison.OrdinalIgnoreCase ))) )
@@ -58,6 +59,9 @@ internal sealed partial class SourceMaterialBuilder
 		foreach ( var proxy in proxies.Children )
 		{
 			var inputs = new VmtParameters( proxy.Values, FullPath );
+			if ( proxy.Name.Equals( "TeamColor", StringComparison.OrdinalIgnoreCase ) )
+				continue;
+
 			if ( (shader == "vortwarp" && proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase ))
 				|| (shader is "aftershock" or "volumeclouds" && proxy.Name.Equals( "CurrentTime", StringComparison.OrdinalIgnoreCase ))
 				|| (shader == "core" && (proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase )
