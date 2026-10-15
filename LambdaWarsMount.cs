@@ -11,6 +11,8 @@ public sealed class LambdaWarsMount : BaseMount
 	private readonly List<object> maps = new();
 	private string activePackage;
 	private string installationPath;
+	private string steamInstallationPath;
+	public LambdaWarsInstallationResolution InstallationSelection { get; private set; } = new();
 	private readonly Dictionary<string, LambdaWarsPreparedMap> preparedMaps = new( StringComparer.OrdinalIgnoreCase );
 	internal LambdaWarsImportBudget ActiveMapImportBudget { get; set; }
 	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) != "0";
@@ -19,15 +21,13 @@ public sealed class LambdaWarsMount : BaseMount
 
 	protected override void Initialize( InitializeContext context )
 	{
-		var directory = context.IsAppInstalled( AppId ) ? context.GetAppDirectory( AppId ) : null;
-		if ( string.IsNullOrWhiteSpace( directory ) || !System.IO.Directory.Exists( directory ) )
-			directory = Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" );
-
-		if ( string.IsNullOrWhiteSpace( directory ) || !System.IO.Directory.Exists( directory ) )
+		IsInstalled = true;
+		steamInstallationPath = context.IsAppInstalled( AppId ) ? context.GetAppDirectory( AppId ) : null;
+		InstallationSelection = LambdaWarsInstallation.Resolve( steamInstallationPath, Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" ) );
+		if ( !InstallationSelection.IsAvailable )
 			return;
 
-		if ( File.Exists( Path.Combine( directory, "gameinfo.txt" ) ) )
-			directory = Path.GetDirectoryName( Path.GetFullPath( directory ) );
+		var directory = InstallationSelection.InstallationPath;
 
 		var sources = new List<ContentSource>();
 		foreach ( var folder in new[] { "lambdawars", "swarm", "swarm_base", "platform" } )
@@ -47,9 +47,12 @@ public sealed class LambdaWarsMount : BaseMount
 		IndexContent( sources );
 		LambdaWarsContentAliases.Apply( this );
 		installationPath = Path.GetFullPath( directory );
+		IsInstalled = true;
 	}
 	protected override Task Mount( MountContext context )
 	{
+		context.Add( ResourceType.GameResource, "configuration.json", new LambdaWarsConfigurationLoader( steamInstallationPath, () => installationPath ) );
+		context.Add( ResourceType.GameResource, "configuration-apply.json", new LambdaWarsConfigurationLoader( steamInstallationPath, () => installationPath, true ) );
 		var selectedMap = Environment.GetEnvironmentVariable( "LAMBDA_WARS_IMPORT_MAP" ) ?? "hlw_village";
 		var mapPath = $"maps/{selectedMap}.bsp";
 		if ( MapsEnabled && IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )
@@ -61,6 +64,7 @@ public sealed class LambdaWarsMount : BaseMount
 				context.Add( ResourceType.Model, $"{mapPath}.scene.model_{modelIndex}", new LambdaWarsBspModelLoader( mapPath, modelIndex ) );
 		}
 		base.Mount( context ).GetAwaiter().GetResult();
+		IsMounted = true;
 		maps.Clear();
 		foreach ( var name in IndexedContentFiles().Where( path => path.StartsWith( "maps/hlw_", StringComparison.OrdinalIgnoreCase ) && path.EndsWith( ".bsp", StringComparison.OrdinalIgnoreCase ) ) )
 		{
@@ -94,7 +98,12 @@ public sealed class LambdaWarsMount : BaseMount
 							KeyValues = entity
 						} ).ToArray(),
 					IsPlayable = false,
-					Error = "Map geometry and navigation have not been validated."
+					CanPrepare = MapsEnabled && string.Equals( activePackage, name, StringComparison.OrdinalIgnoreCase ),
+					Error = !MapsEnabled
+						? "Original map preparation is disabled. Enable original map loading and restart the game."
+						: !string.Equals( activePackage, name, StringComparison.OrdinalIgnoreCase )
+							? $"This session mounted {selectedMap}. Select {id} with LAMBDA_WARS_IMPORT_MAP and restart the game before preparing it."
+							: ""
 				} );
 			}
 			catch ( Exception exception )
@@ -112,8 +121,11 @@ public sealed class LambdaWarsMount : BaseMount
 		var companion = "models/structures/resistance/billet.dx90.vtx";
 		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new
 		{
-			Version = 2,
-			Status = $"Original content mounted; {maps.Count} maps indexed. Map validation is required before play.",
+			Version = 3,
+			Status = !InstallationSelection.IsAvailable ? InstallationSelection.Status
+				: $"{InstallationSelection.Status} {maps.Count} maps indexed. " + (MapsEnabled && activePackage is not null
+				? $"{selectedMap} can be prepared; collision and navigation are checked during match loading."
+				: "Original map preparation is disabled for this session."),
 			InstallationPath = installationPath,
 			IndexedFileCount = files.Count,
 			ModelsEnabled,

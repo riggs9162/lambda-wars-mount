@@ -2,9 +2,11 @@
 
 Native Source 1 resource readers adapted from Facepunch's MIT-licensed `Sandbox.Mounting.Source1` implementation in [sbox-public](https://github.com/Facepunch/sbox-public). The accompanying license applies to the upstream readers and shaders. `LambdaWars*` files add installation discovery, map metadata and BSP scene reconstruction.
 
-Original game assets are read from the Steam installation and are never copied by this project. If Steam has no valid registered installation, `LAMBDA_WARS_GAME_PATH` can provide the original installation root or its `lambdawars` directory.
+Original game assets are read from the installed game and are never copied by this project. Settings provides a manual content path accepting either the installation root or its `lambdawars` directory. Saving validates the directory and takes effect after restarting; clearing the path restores automatic Steam discovery.
 
-Steam's registered installation is preferred by default. Both loose installations with `.dx90.vtx` model companions and Steam VPKs with `.vtx` companions are supported; the original model and texture identifiers stay unchanged.
+Steam's registered installation is preferred by default. An explicitly saved manual path overrides discovery; `LAMBDA_WARS_GAME_PATH` remains a fallback when no valid installation is otherwise available. Manual configuration is stored locally in `%LOCALAPPDATA%/LambdaWarsSbox/content.json` and is never replicated to other players. Both loose installations with `.dx90.vtx` model companions and Steam VPKs with `.vtx` companions are supported; the original model and texture identifiers stay unchanged.
+
+On Windows, automatic discovery also checks Steam's registry entries read-only, then follows `steamapps/libraryfolders.vdf` and `appmanifest_270370.acf` to the registered game directory. It checks both machine registry views and the current user's Steam path; no registry values are modified.
 
 Build the production mount project with .NET 10 against your local engine:
 
@@ -31,7 +33,7 @@ With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll
 - Map catalog reads retain entity/model metadata and stream SHA-256 fingerprints without retaining entire BSP files.
 - When map conversion is explicitly enabled, only one map's embedded package is prepared. `LAMBDA_WARS_IMPORT_MAP` chooses its original basename; the default is `hlw_village`.
 - Embedded packages are limited to 64 MB uncompressed and 4,096 entries.
-- Scene loading checks resident memory between resources, allowing at most 512 MB growth and a 2 GB process ceiling, with a 20-second work budget. These checks cannot interrupt an individual native resource conversion or shader compilation already in progress.
+- Scene loading estimates a bounded memory-growth allowance from validated texture payloads, with a 2 GB growth ceiling and a 20-second work budget. The system must retain at least 2 GB or 10 percent of physical RAM, whichever is larger. These checks cannot interrupt an individual native resource conversion or shader compilation already in progress.
 - Changing original maps requires restarting until map-specific resource teardown is implemented.
 - The original maps remain validation-gated. Loading metadata is not proof of a playable map.
 
