@@ -12,6 +12,7 @@ public abstract partial class BaseMount : BaseGameMount
 	protected abstract string ContentDirectory { get; }
 
 	private volatile FileIndex index = new();
+	private string installedDirectory;
 	internal FileIndex CurrentIndex => index;
 	private readonly object indexLock = new();
 
@@ -29,6 +30,7 @@ public abstract partial class BaseMount : BaseGameMount
 	protected override void Initialize( InitializeContext context )
 	{
 		ReplaceIndex( new FileIndex() );
+		installedDirectory = null;
 		IsInstalled = false;
 		IsMounted = false;
 		if ( !context.IsAppInstalled( AppId ) )
@@ -38,7 +40,8 @@ public abstract partial class BaseMount : BaseGameMount
 		if ( !System.IO.Directory.Exists( directory ) )
 			return;
 
-		IndexContent( directory );
+		installedDirectory = directory;
+		IsInstalled = true;
 	}
 
 	internal void IndexContent( string directory ) => IndexContent( ScanContent( directory ) );
@@ -91,12 +94,17 @@ public abstract partial class BaseMount : BaseGameMount
 
 	protected override void Shutdown()
 	{
+		installedDirectory = null;
 		ReplaceIndex( new FileIndex() );
 	}
 
 	protected override Task Mount( MountContext context )
 	{
 		IsMounted = false;
+		if ( index.Resources.Count == 0 && installedDirectory is not null )
+		{
+			IndexContent( installedDirectory );
+		}
 		var current = index;
 		if ( current.Resources.Count == 0 )
 		{
