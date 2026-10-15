@@ -40,3 +40,9 @@ With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll
 - The original maps remain validation-gated. Loading metadata is not proof of a playable map.
 
 Source shaders under `Assets/shaders/source1` are engine implementation code rather than original-game artwork. Do not run concurrent shader compilation, map loading or game instances during validation.
+
+## Original animation channels
+
+All skeletal Lambda Wars models now import their local and recursively included sequence catalogs, rather than only the four initial roster models and selected activities. Unique source animation tracks are decoded once, retain every authored frame, FPS and additive flag, and are shared by blend-grid entries. Single-track sequences also expose their original sequence name; duplicate names retain their source model/index in the catalog. Existing evaluated roster clips take precedence over raw aliases.
+
+`SourceSequenceCatalog` is available as model game data in the mount and game assemblies. It maps original names and activities to native track names, pose-parameter grids and bone weights. `PendingOperations` identifies layers, IK, root motion and transition requirements. These raw channels are animation inputs, not a replacement for Source's sequence controller: world contacts, persistent foot latching, pose-driven layering and unit activity selection still require runtime integration. Import failures are retained per sequence as `Error`, rather than reported as successful animations. Source input caching is capped at 128 MiB and decoded poses at 256 MiB per model; assets beyond those bounds remain explicit catalog errors.

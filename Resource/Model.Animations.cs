@@ -20,14 +20,23 @@ internal sealed partial class SourceModelBuilder
 
 	private void AddOriginalAnimations(ModelBuilder builder, MdlFile mdl)
 	{
-		if (Host is not LambdaWarsMount || !RosterAnimationActivities.ContainsKey(FullPath))
+		if (Host is not LambdaWarsMount || mdl.BoneCount == 0)
 		{
 			return;
 		}
 
+		var catalog = PrepareSequenceCatalog(mdl, FullPath, Host.OpenContentFile);
+
 		var plan = PrepareOriginalAnimations(mdl, FullPath, Host.OpenContentFile);
 
-		foreach (var clip in plan.Clips)
+		builder.WithData(catalog.Catalog);
+
+		foreach (var sequence in catalog.Catalog.Sequences.Where(sequence => sequence.Error.Length != 0))
+		{
+			Log.Trace($"{FullPath}: original sequence {sequence.SourceModelPath}:{sequence.Name} channels were not imported: {sequence.Error}");
+		}
+
+		foreach (var clip in plan.Clips.Concat(catalog.Clips.Where(clip => !plan.Clips.Any(prepared => prepared.Name == clip.Name))))
 		{
 			var animation = builder.AddAnimation(clip.Name, clip.FramesPerSecond)
 				.WithLooping(clip.Looping)
