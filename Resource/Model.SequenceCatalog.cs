@@ -54,6 +54,7 @@ internal sealed partial class SourceModelBuilder
 				ParameterY = sequence.ParameterY,
 				KeysX = sequence.KeysX,
 				KeysY = sequence.KeysY,
+				Error = sequence.AnimationIndices.Length == 0 ? "Empty sequence has no animation tracks." : "",
 				BoneWeights = new float[mdl.BoneCount]
 			};
 			entries.Add(entry);

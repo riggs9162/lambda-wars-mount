@@ -6,7 +6,7 @@ namespace Sandbox.Mounting.Source1;
 internal sealed partial class VmtFile
 {
 	private static readonly string[] ShaderSuffixes =
-		["_dx9_hdr", "_dx90", "_dx95", "_dx9", "_dx80", "_dx81", "_dx8", "_dx70", "_dx7", "_dx60", "_dx6"];
+		["_dx90_20b", "_dx9_hdr", "_dx90", "_dx95", "_dx9", "_dx80", "_dx81", "_dx8", "_dx70", "_dx7", "_dx60", "_dx6"];
 
 	internal static string NormalizeShaderName( string shader )
 	{
@@ -24,7 +24,12 @@ internal sealed partial class VmtFile
 			if ( !block.IsBlock ) continue;
 			var name = block.Name.AsSpan();
 			var dx = name.IndexOf( "DX", StringComparison.OrdinalIgnoreCase );
-			if ( dx < 0 || !int.TryParse( name[(dx + 2)..], NumberStyles.None, CultureInfo.InvariantCulture, out var level ) )
+			if ( dx < 0 )
+				continue;
+			var version = name[(dx + 2)..];
+			if ( version.EndsWith( "_20b", StringComparison.OrdinalIgnoreCase ) )
+				version = version[..^4];
+			if ( !int.TryParse( version, NumberStyles.None, CultureInfo.InvariantCulture, out var level ) )
 				continue;
 			var selected = name[..dx] switch
 			{

@@ -21,7 +21,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 			throw new NotSupportedException( $"Texture format {vtf.Header.HiResFormat} is unsupported: {filename}" );
 		var frames = frame.HasValue ? 1 : vtf.FrameCount;
 		if ( vtf.Header.Width < 1 || vtf.Header.Height < 1 || vtf.Header.Width > 4096 || vtf.Header.Height > 4096
-			|| frames < 1 || frames > 256 || vtf.ZSliceCount != 1
+			|| frames < 1 || frames > 512 || vtf.ZSliceCount != 1
 			|| (long)vtf.Header.Width * vtf.Header.Height * frames * vtf.FaceCount > 16 * 1024 * 1024 )
 			throw new InvalidDataException( $"Texture exceeds the current import size limit: {filename}" );
 	}

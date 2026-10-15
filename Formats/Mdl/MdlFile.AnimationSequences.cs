@@ -58,6 +58,18 @@ internal sealed partial class MdlFile
 			var offset = checked(_header.LocalSeqIndex + (long)i * Marshal.SizeOf<StudioSeqDesc>());
 			stream.Position = offset;
 			var sequence = LumpReader<StudioSeqDesc>.ReadSingleFromStream(stream);
+			if (sequence.NumBlends == 0 && sequence.GroupSize == 0 && sequence.GroupSize2 == 0)
+			{
+				result[i] = new(i, ReadOptionalRelativeString(stream, offset, sequence.LabelIndex),
+					ReadOptionalRelativeString(stream, offset, sequence.ActivityNameIndex), sequence.Flags, [], "Empty sequence")
+				{
+					KeysX = [],
+					KeysY = [],
+					BoneWeights = new float[BoneCount]
+				};
+				continue;
+			}
+
 			if (sequence.GroupSize < 1 || sequence.GroupSize2 < 1 || sequence.GroupSize > 256 || sequence.GroupSize2 > 256 || sequence.NumBlends != sequence.GroupSize * sequence.GroupSize2)
 			{
 				throw new InvalidDataException("Invalid sequence blend grid.");
