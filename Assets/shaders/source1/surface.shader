@@ -129,6 +129,7 @@ PS
 	Texture2D g_tSourceScene < Attribute( "FrameBufferCopyTexture" ); SrgbRead( false ); >;
 
 	CreateInputTexture2D( SourceColor, Srgb, 8, "None", "_color", "Source 1", Default4( 1, 1, 1, 1 ) );
+	CreateInputTexture2D( SourceTeamMask, Linear, 8, "None", "_mask", "Source 1", Default4( 0, 0, 0, 1 ) );
 	CreateInputTexture2D( SourceNormal, Linear, 8, "None", "_normal", "Source 1", Default4( 0.5, 0.5, 1, 1 ) );
 	CreateInputTexture2D( SourceDetail, Linear, 8, "None", "_detail", "Source 1", Default4( 0.5, 0.5, 0.5, 1 ) );
 	CreateInputTexture2D( SourceEnvMask, Linear, 8, "None", "_mask", "Source 1", Default4( 1, 1, 1, 1 ) );
@@ -199,7 +200,7 @@ PS
 	float3 g_vSourceColorTint < Default3( 1, 1, 1 ); >;
 	float3 g_vSourceTeamColor < Attribute( "SourceTeamColor" ); Default3( 1, 1, 1 ); >;
 	float g_flSourceHasTeamMask < Default( 0 ); >;
-	Texture2D g_tSourceTeamMask < Attribute( "g_tSourceTeamMask" ); SrgbRead( false ); >;
+	Texture2D g_tSourceTeamMask < Channel( RGBA, Box( SourceTeamMask ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
 	float g_flSourceAlphaTestReference < Default( 0.5 ); >;
 	float g_flSourceUseBaseAlpha < Default( 1 ); >;
 	float g_flSourceBlendTintByBaseAlpha < Default( 0 ); >;
