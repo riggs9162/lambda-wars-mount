@@ -20,7 +20,7 @@ internal sealed partial class SourceModelBuilder
 
 	private void AddOriginalAnimations(ModelBuilder builder, MdlFile mdl)
 	{
-		if (Host is not LambdaWarsMount || mdl.BoneCount == 0)
+		if (Host is not LambdaWarsMount || mdl.BoneCount == 0 || mdl.IsStaticProp)
 		{
 			return;
 		}
