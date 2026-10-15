@@ -52,3 +52,16 @@ All skeletal Lambda Wars models now import their local and recursively included 
 `WarsUnitAnimation` selects the current roster's idle, run/walk, weapon attack and construction activities. Weapon shots carry a host-owned serial and simulation timestamp in the match snapshot, so clients replay actual shots and return to idle instead of continuously looping a firing sequence merely because an attack order exists. Weapon bone merging runs after the final character pose.
 
 `WarsBuildingAnimation` applies original construction progress, finished/idle activities, powered production work activities and production pose parameters for all current building definitions. The billet uses `ACT_FINISHED`; structures without authored construction or work activities retain their original idle pose. The source animation contracts follow [Valve's bone setup implementation](https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/public/bone_setup.cpp) and the installed Lambda Wars unit/building definitions. These controllers cover the states exposed by the current match simulation; they do not add new unit types, abilities, death persistence or destruction effects.
+
+
+## Original gameplay audio
+
+Logical events from the installed sound manifest are exposed lazily as `mount://lambda_wars/sounds/events/<lowercase escaped event name>.sound`. They retain available random wave variants, authored volume and pitch ranges, WAV loop markers and Source sound-level falloff. No original media is copied into the project. Distance-variant NPC gunshots decode their close-left and distant-right channels into separate mono resources; the match blends them over 1,200 world units with synchronized variant and pitch selection.
+
+The current five units and nine buildings use original selection/order responses, weapon fire, pain/death and destruction sounds. Footsteps and explicit sound events follow the evaluated animation cycles, including loop wraps. Barracks, junkyard and garrison production sounds follow completed, powered production; stalker beam loops follow actual attacks or nearby building work. Work loops stop on power loss, activity changes, fog, removal and match cleanup.
+
+Host snapshots carry a bounded sound history and serial watermark. Each recipient receives only sounds permitted by world visibility or ownership; local playback consumes each serial once and skips old join history. Burst shots retain their source spacing. Selection and accepted command acknowledgements play once per group with the original response cooldowns. Faction announcements cover production, population upgrades, captures, attacks and population limits where their original cues exist.
+
+The original rebel definition references an undefined `unit_rebel_attack` event, so the port uses its original movement acknowledgements when that event is absent. Missing base-game concrete/tile footsteps fall back to the installed NPC run-footstep events. The stalker's moved laser-flesh wave is repaired through the explicit content alias table. These fallbacks do not invent or redistribute audio.
+
+Roster preparation also runs when gameplay scene services start, so a fresh proving-ground launch prepares its CPU model reports before allowing rendering. An empty report catalog must not leave every unit and building invisible until the manual content dialog is opened.
