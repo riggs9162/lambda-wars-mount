@@ -205,7 +205,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			{
 				var u = x / (float)(side - 1);
 				var v = y / (float)(side - 1);
-				var point = Vector3.Lerp( Vector3.Lerp( c[0], c[1], u ), Vector3.Lerp( c[3], c[2], u ), v );
+				var point = Vector3.Lerp( Vector3.Lerp( c[0], c[1], v ), Vector3.Lerp( c[3], c[2], v ), u );
 				reader.BaseStream.Position = bsp.Lumps[33].Offset + (firstVertex + y * side + x) * 20;
 				point += LambdaWarsBsp.ReadVector( reader ) * reader.ReadSingle();
 				var authoredAlpha = reader.ReadSingle();
@@ -223,7 +223,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				var b = a + 1;
 				var c1 = a + side;
 				var d = c1 + 1;
-				var triangles = (x + y) % 2 == 0 ? new[] { a, d, b, a, c1, d } : new[] { a, c1, b, b, c1, d };
+				var triangles = (x + y) % 2 == 0 ? new[] { a, b, d, a, d, c1 } : new[] { a, b, c1, b, d, c1 };
 				group.Indices.AddRange( triangles.Select( i => i + index ) );
 				collisionIndices.AddRange( triangles.Select( i => i + collision ) );
 			}
