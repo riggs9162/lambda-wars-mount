@@ -127,8 +127,10 @@ internal sealed class LambdaWarsBsp
 
 	internal static Vector3 Vector( string value )
 	{
-		var values = value.Split( ' ', StringSplitOptions.RemoveEmptyEntries );
-		return new( float.Parse( values[0], CultureInfo.InvariantCulture ), float.Parse( values[1], CultureInfo.InvariantCulture ), float.Parse( values[2], CultureInfo.InvariantCulture ) );
+		var values = value.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
+		return new( values.Length > 0 ? LambdaWarsEntityNumbers.Read( values[0] ) : 0,
+			values.Length > 1 ? LambdaWarsEntityNumbers.Read( values[1] ) : 0,
+			values.Length > 2 ? LambdaWarsEntityNumbers.Read( values[2] ) : 0 );
 	}
 
 	internal static Angles Angle( string value )

@@ -71,9 +71,12 @@ public abstract partial class BaseMount
 
 	internal GameObject GetImpactDecal( char material )
 	{
+		if ( material == '-' )
+			return null;
+
 		var group = index.Decals.ImpactGroup( material );
-		if ( group is null && material != '-' ) return null;
-		var path = material == '-' ? "decals/no_impact.prefab" : DecalGroupPath( group );
+		if ( group is null ) return null;
+		var path = DecalGroupPath( group );
 		var prefab = PrefabFile.Load( $"mount://{Ident}/{path}" );
 		if ( prefab is null )
 		{
