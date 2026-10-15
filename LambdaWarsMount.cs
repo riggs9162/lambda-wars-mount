@@ -11,6 +11,8 @@ public sealed class LambdaWarsMount : BaseMount
 	private readonly List<object> maps = new();
 	private string activePackage;
 	private string installationPath;
+	private readonly Dictionary<string, LambdaWarsPreparedMap> preparedMaps = new( StringComparer.OrdinalIgnoreCase );
+	internal LambdaWarsImportBudget ActiveMapImportBudget { get; set; }
 	internal bool ModelsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_3D_IMPORT" ) != "0";
 	internal bool MapsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_MAP_IMPORT" ) == "1";
 	internal bool FacialMorphsEnabled => Environment.GetEnvironmentVariable( "LAMBDA_WARS_ENABLE_FACIAL_MORPHS" ) == "1";
@@ -55,6 +57,8 @@ public sealed class LambdaWarsMount : BaseMount
 			var selected = new LambdaWarsBsp( GetFileBytes( mapPath ) );
 			IndexMapPackage( selected.GetLump( 40 ), context );
 			activePackage = mapPath;
+			for ( var modelIndex = 0; modelIndex < selected.Lumps[14].Length / 48; modelIndex++ )
+				context.Add( ResourceType.Model, $"{mapPath}.scene.model_{modelIndex}", new LambdaWarsBspModelLoader( mapPath, modelIndex ) );
 		}
 		base.Mount( context ).GetAwaiter().GetResult();
 		maps.Clear();
@@ -120,6 +124,32 @@ public sealed class LambdaWarsMount : BaseMount
 			Maps = maps
 		} ) ) );
         return Task.CompletedTask;
+	}
+
+	internal LambdaWarsPreparedMap PrepareMapContent( string filename, LambdaWarsImportBudget budget )
+	{
+		if ( !MapsEnabled )
+			throw new InvalidDataException( "Original 3D map conversion is disabled pending GPU validation." );
+		if ( preparedMaps.TryGetValue( filename, out var existing ) )
+			return existing;
+
+		var bsp = new LambdaWarsBsp( GetFileBytes( filename ) );
+		PrepareMapPackage( filename, bsp.GetLump( 40 ) );
+		using var propSource = bsp.Open();
+		var staticProps = LambdaWarsStaticPropReader.Read( propSource.BaseStream );
+		budget.SetStage( "Checking static-prop dependencies" );
+		var props = LambdaWarsStaticPropPreflight.Inspect( this, staticProps, budget.Check );
+		if ( !props.IsValid )
+			throw new InvalidDataException( $"Original map static-prop dependencies failed before rendering: {string.Join( "; ", props.Failures.Take( 3 ).Select( failure => $"{failure.ModelPath}: {failure.Message}" ) )}" );
+
+		budget.SetStage( "Checking whole-map resource dependencies" );
+		var resources = LambdaWarsMapResourcePreflight.Inspect( this, bsp, props, budget.Check );
+		if ( !resources.IsValid )
+			throw new InvalidDataException( $"Original map resources failed before rendering: {string.Join( "; ", resources.Failures.Take( 3 ).Select( failure => $"{failure.ModelPath}: {failure.Message}" ) )}" );
+
+		var prepared = new LambdaWarsPreparedMap( bsp, staticProps, resources.DecodedUploadBytes );
+		preparedMaps.Add( filename, prepared );
+		return prepared;
 	}
 
 	internal void PrepareMapPackage( string filename, byte[] package )

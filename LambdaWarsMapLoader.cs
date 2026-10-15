@@ -13,20 +13,26 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			throw new InvalidDataException( "Original 3D map conversion is disabled pending GPU validation." );
 		using var currentBudget = new LambdaWarsImportBudget();
 		budget = currentBudget;
-		var bsp = new LambdaWarsBsp( Host.GetFileBytes( filename ) );
-		Host.PrepareMapPackage( filename, bsp.GetLump( 40 ) );
-		using var propSource = bsp.Open();
-		var staticProps = LambdaWarsStaticPropReader.Read( propSource.BaseStream );
-		budget.SetStage( "Checking static-prop dependencies" );
-		var propPreflight = LambdaWarsStaticPropPreflight.Inspect( Host, staticProps, budget.Check );
-		if ( !propPreflight.IsValid )
+		Host.ActiveMapImportBudget = currentBudget;
+		try
 		{
-			var failures = string.Join( "; ", propPreflight.Failures.Take( 3 )
-				.Select( failure => $"{failure.ModelPath}: {failure.Message}" ) );
-			throw new InvalidDataException( $"Original map static-prop dependencies failed before rendering: {failures}" );
+			BuildPreparedScene();
 		}
+		finally
+		{
+			Host.ActiveMapImportBudget = null;
+			budget = null;
+		}
+	}
 
-		var model = BuildGeometry( bsp );
+	private void BuildPreparedScene()
+	{
+		var prepared = Host.PrepareMapContent( filename, budget );
+		var bsp = prepared.Bsp;
+		var staticProps = prepared.StaticProps;
+		budget.ReserveResources( prepared.DecodedUploadBytes );
+		GC.Collect( GC.MaxGeneration, GCCollectionMode.Optimized, blocking: true, compacting: false );
+		var model = LoadRegisteredGeometry( 0 );
 		var world = new GameObject( true, filename );
 		world.Components.Create<ModelRenderer>().Model = model;
 		var collider = world.Components.Create<ModelCollider>();
@@ -40,9 +46,29 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
         AddEntityProps( bsp );
         AddLighting( bsp );
         AddEntityMarkers( bsp );
+		var navigation = world.Scene.NavMesh;
+		navigation.IsEnabled = true;
+		navigation.IncludeStaticBodies = true;
+		navigation.IncludeKeyframedBodies = false;
+		navigation.DeferGeneration = true;
+		navigation.CustomBounds = true;
+		navigation.Bounds = bsp.Bounds;
+		navigation.AgentHeight = 64;
+		navigation.AgentRadius = 16;
+		navigation.AgentStepSize = 18;
+		navigation.AgentMaxSlope = 40;
+		navigation.ExcludedBodies.Add( "nav_exclude" );
 	}
 
-	private Model BuildGeometry( LambdaWarsBsp bsp, int modelIndex = 0 )
+	private Model LoadRegisteredGeometry( int modelIndex )
+	{
+		var model = Model.Load( $"{Path}.model_{modelIndex}.vmdl" );
+		if ( model is null || model.IsError )
+			throw new InvalidDataException( $"Original BSP model {modelIndex} could not be loaded through its registered resource." );
+		return model;
+	}
+
+	internal static Model BuildGeometry( LambdaWarsMount host, LambdaWarsBsp bsp, LambdaWarsImportBudget budget, string resourcePath, int modelIndex )
 	{
 		budget.SetStage( $"Reading geometry for BSP model {modelIndex}" );
 		using var reader = bsp.Open();
@@ -98,7 +124,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				budget.Check();
 			reader.BaseStream.Position = bsp.Lumps[7].Offset + faceIndex * 56;
 			var plane = reader.ReadUInt16();
-			var back = reader.ReadByte() != 0;
+			reader.ReadByte();
 			reader.ReadByte();
 			var firstEdge = reader.ReadInt32();
 			var edgeCount = reader.ReadInt16();
@@ -112,7 +138,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			if ( name.StartsWith( "tools/", StringComparison.OrdinalIgnoreCase ) || (info.Flags & 0x84) != 0 ) continue;
 
 			reader.BaseStream.Position = bsp.Lumps[1].Offset + plane * 20;
-			var normal = LambdaWarsBsp.ReadVector( reader ) * (back ? -1 : 1);
+			var normal = LambdaWarsBsp.ReadVector( reader );
 			var points = new Vector3[edgeCount];
 			for ( var j = 0; j < points.Length; j++ )
 			{
@@ -127,11 +153,11 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 
 		budget.SetStage( $"Loading {groups.Count} materials for BSP model {modelIndex}" );
-		var builder = Model.Builder.WithName( Path );
+		var builder = Model.Builder.WithName( resourcePath );
 		foreach ( var pair in groups )
 		{
 			budget.Check();
-			var material = Host.LoadContentMaterial( $"materials/{pair.Key}.vmt" );
+			var material = host.LoadContentMaterial( $"materials/{pair.Key}.vmt" );
 			var mesh = new Mesh( material );
 			mesh.CreateVertexBuffer( pair.Value.Vertices.Count, pair.Value.Vertices );
 			mesh.CreateIndexBuffer( pair.Value.Indices.Count, pair.Value.Indices );
@@ -140,7 +166,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		budget.SetStage( $"Preparing collision for BSP model {modelIndex}" );
 		if ( collisionIndices.Count > 0 )
 			builder.AddCollisionMesh( collisionVertices, collisionIndices );
-        AddBrushCollision( bsp, reader, builder, modelIndex );
+        AddBrushCollision( bsp, reader, builder, modelIndex, budget );
 		budget.SetStage( $"Creating BSP model {modelIndex}" );
 		return builder.Create();
 	}
@@ -154,7 +180,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 		for ( var i = 1; i < points.Length - 1; i++ )
 		{
-			group.Indices.AddRange( new[] { index, index + i, index + i + 1 } );
+			group.Indices.AddRange( new[] { index, index + i + 1, index + i } );
 		}
 	}
 
@@ -194,7 +220,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				var b = a + 1;
 				var c1 = a + side;
 				var d = c1 + 1;
-				var triangles = (x + y) % 2 == 0 ? new[] { a, b, d, a, d, c1 } : new[] { a, b, c1, b, d, c1 };
+				var triangles = (x + y) % 2 == 0 ? new[] { a, d, b, a, c1, d } : new[] { a, c1, b, b, c1, d };
 				group.Indices.AddRange( triangles.Select( i => i + index ) );
 				collisionIndices.AddRange( triangles.Select( i => i + collision ) );
 			}
@@ -224,7 +250,9 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			var prop = new GameObject( true, modelName );
 			prop.WorldPosition = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
 			prop.WorldRotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) );
-			prop.Components.Create<ModelRenderer>().Model = model;
+			var renderer = prop.Components.Create<SkinnedModelRenderer>();
+			renderer.UseAnimGraph = false;
+			renderer.Model = model;
 			var collider = prop.Components.Create<ModelCollider>();
 			collider.Model = model;
 			collider.Static = true;
@@ -258,7 +286,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				continue;
 
 			var index = int.Parse( modelName[1..], System.Globalization.CultureInfo.InvariantCulture );
-			var model = BuildGeometry( bsp, index );
+			var model = LoadRegisteredGeometry( index );
 			var brush = new GameObject( true, entity.GetValueOrDefault( "targetname", classname ) );
 			brush.WorldPosition = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
 			brush.WorldRotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) );
@@ -345,10 +373,6 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 				renderer.MaterialGroup = $"Skin {source.Skin}";
 			}
-			else if ( source.Skin != 0 )
-			{
-				throw new InvalidDataException( $"Static prop requests a missing skin: {source.ModelPath}" );
-			}
 
 			if ( source.Solid != 0 )
 			{
@@ -380,7 +404,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 	}
 
-	private void AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex )
+	private static void AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget )
 	{
 		var planes = new (Vector3 Normal, float Distance)[bsp.Lumps[1].Length / 20];
 		for ( var i = 0; i < planes.Length; i++ )
@@ -457,5 +481,23 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	{
 		internal List<Vertex> Vertices { get; } = new();
 		internal List<int> Indices { get; } = new();
+	}
+}
+
+internal sealed record LambdaWarsPreparedMap( LambdaWarsBsp Bsp, LambdaWarsStaticPropMetadata StaticProps, long DecodedUploadBytes );
+
+/// <summary>Rebuilds a registered BSP submodel after scene unload while sharing only live scene-import budgets.</summary>
+internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex ) : ResourceLoader<LambdaWarsMount>
+{
+	protected override object Load()
+	{
+		using var independentBudget = Host.ActiveMapImportBudget is null ? new LambdaWarsImportBudget() : null;
+		var budget = Host.ActiveMapImportBudget ?? independentBudget;
+		var prepared = Host.PrepareMapContent( filename, budget );
+		if ( independentBudget is not null )
+			budget.ReserveResources( prepared.DecodedUploadBytes );
+		if ( modelIndex < 0 || modelIndex >= prepared.Bsp.Lumps[14].Length / 48 )
+			throw new InvalidDataException( "The registered BSP model index is invalid." );
+		return LambdaWarsMapLoader.BuildGeometry( Host, prepared.Bsp, budget, Path, modelIndex );
 	}
 }
