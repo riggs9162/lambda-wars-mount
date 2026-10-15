@@ -269,7 +269,12 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			return;
 
 		var light = new GameObject( true, "light_environment" );
-		light.WorldRotation = LambdaWarsBsp.Angle( environment.GetValueOrDefault( "angles", "45 0 0" ) );
+		var angles = LambdaWarsBsp.Angle( environment.GetValueOrDefault( "angles", "0 0 0" ) );
+		var sourcePitch = environment.TryGetValue( "pitch", out var pitch )
+			? LambdaWarsEntityNumbers.Read( pitch ) : 0;
+		if ( !float.IsFinite( sourcePitch ) )
+			throw new InvalidDataException( "The light_environment pitch must be finite." );
+		light.WorldRotation = new Angles( -sourcePitch, angles.yaw, angles.roll );
 		var directional = light.Components.Create<DirectionalLight>();
 		directional.LightColor = ReadLightColor( environment.GetValueOrDefault( "_light", "255 255 255 200" ) );
 	}
