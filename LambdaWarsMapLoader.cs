@@ -329,6 +329,12 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		light.WorldRotation = new Angles( -sourcePitch, angles.yaw, angles.roll );
 		var directional = light.Components.Create<DirectionalLight>();
 		directional.LightColor = ReadLightColor( environment.GetValueOrDefault( "_light", "255 255 255 200" ) );
+
+		if ( environment.TryGetValue( "_ambient", out var ambientColor ) )
+		{
+			var ambient = light.Components.Create<AmbientLight>();
+			ambient.Color = ReadLightColor( ambientColor );
+		}
 	}
 
 	private static Color ReadLightColor( string value )
