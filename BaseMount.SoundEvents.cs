@@ -32,6 +32,10 @@ public abstract partial class BaseMount
 						|| entry.IsBlock && entry.Children.Any(wave => wave.Value?.Contains('^') == true)))
 						context.Add(ResourceType.GameResource, $"sounds/events/{Uri.EscapeDataString(root.Name.ToLowerInvariant())}.distant.sound",
 							new SourceScriptSoundLoader(root, path, true));
+					if (root.Children.Any(entry => entry.Name.Equals("wave", StringComparison.OrdinalIgnoreCase) && entry.Value.Contains('<')
+						|| entry.IsBlock && entry.Children.Any(wave => wave.Value?.Contains('<') == true)))
+						context.Add(ResourceType.GameResource, $"sounds/events/{Uri.EscapeDataString(root.Name.ToLowerInvariant())}.rear.sound",
+							new SourceScriptSoundLoader(root, path, true));
 				}
 			}
 			catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)

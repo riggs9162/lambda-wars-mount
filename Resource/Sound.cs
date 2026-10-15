@@ -15,13 +15,13 @@ internal sealed class Mp3SoundLoader( string fullPath ) : ResourceLoader<BaseMou
 
 internal static class SourceSoundEvents
 {
-	/// <summary>Decodes Source's close-left/distant-right PCM gunshots as separate mono files without writing original media to disk.</summary>
-	private static SoundFile DistanceChannel(BaseMount host, string wave, bool distant)
+	/// <summary>Decodes Source's close/far or front/rear PCM channels as separate mono files without writing original media to disk.</summary>
+	private static SoundFile StereoChannel(BaseMount host, string wave, bool right, bool directional)
 	{
 		using var stream = new System.IO.MemoryStream(host.GetFileBytes(wave), false);
 		using var reader = new System.IO.BinaryReader(stream);
 		if (reader.ReadUInt32() != 0x46464952 || reader.ReadUInt32() > stream.Length - 8 || reader.ReadUInt32() != 0x45564157)
-			throw new System.IO.InvalidDataException($"{wave}: invalid distance-variant WAV header.");
+			throw new System.IO.InvalidDataException($"{wave}: invalid stereo-variant WAV header.");
 
 		ushort channels = 0, bits = 0, format = 0;
 		uint rate = 0;
@@ -47,16 +47,17 @@ internal static class SourceSoundEvents
 			stream.Position = end + (size & 1);
 		}
 		if (format != 1 || channels != 2 || bits != 16 || rate is < 8000 or > 192000 || samples is null || samples.Length % 4 != 0)
-			throw new NotSupportedException($"{wave}: distance variants require stereo 16-bit PCM WAV data.");
+			throw new NotSupportedException($"{wave}: stereo variants require stereo 16-bit PCM WAV data.");
 
 		var mono = new byte[samples.Length / 2];
 		for (var i = 0; i < mono.Length / 2; i++)
 		{
-			var source = i * 4 + (distant ? 2 : 0);
+			var source = i * 4 + (right ? 2 : 0);
 			mono[i * 2] = samples[source];
 			mono[i * 2 + 1] = samples[source + 1];
 		}
-		return SoundFile.FromPcm($"mount://{host.Ident}/{wave}.{(distant ? "distant" : "close")}.vsnd", mono,
+		var suffix = directional ? right ? "rear" : "front" : right ? "distant" : "close";
+		return SoundFile.FromPcm($"mount://{host.Ident}/{wave}.{suffix}.vsnd", mono,
 			new SoundFile.PcmOptions { Channels = 1, Rate = rate, Bits = 16 });
 	}
 
@@ -65,7 +66,8 @@ internal static class SourceSoundEvents
 		var sounds = new List<SoundFile>();
 		foreach ( var wave in definition.Waves )
 		{
-			var sound = definition.DistanceVariant ? DistanceChannel(host, wave, distant) : host.LoadContentSound( wave );
+			var sound = definition.DistanceVariant || definition.DirectionalVariant
+				? StereoChannel(host, wave, distant, definition.DirectionalVariant) : host.LoadContentSound( wave );
 			if ( sound is null || !sound.IsValid )
 				throw new InvalidOperationException( $"{definition.SourcePath}: wave '{wave}' could not be loaded." );
 			sounds.Add( sound );

@@ -6,7 +6,7 @@ using System.IO;
 namespace Sandbox.Mounting.Source1;
 
 internal sealed record SourceSoundDefinition( string Name, string SourcePath, IReadOnlyList<string> Waves,
-	(float Min, float Max) Volume, (float Min, float Max) Pitch, float SoundLevel, bool CompatibilityAttenuation, bool Dry, bool DistanceVariant = false )
+	(float Min, float Max) Volume, (float Min, float Max) Pitch, float SoundLevel, bool CompatibilityAttenuation, bool Dry, bool DistanceVariant = false, bool DirectionalVariant = false )
 {
 	internal float Gain( float distance )
 	{
@@ -57,6 +57,7 @@ internal sealed record SourceSoundDefinition( string Name, string SourcePath, IR
 		var waves = new List<string>();
 		bool dry = false;
 		bool distanceVariant = false;
+		bool directionalVariant = false;
 		foreach ( var entry in root.Children )
 		{
 			if ( !entry.IsBlock && entry.Name.Equals( "wave", StringComparison.OrdinalIgnoreCase ) )
@@ -106,26 +107,31 @@ internal sealed record SourceSoundDefinition( string Name, string SourcePath, IR
 			throw new InvalidDataException( $"{path}: sound '{root.Name}' has invalid sound level." );
 		level = MathF.Truncate( level );
 
-		return new( root.Name, path, waves.AsReadOnly(), volume, (pitch.Min / 100, pitch.Max / 100), level, compatibility, dry, distanceVariant );
+		return new( root.Name, path, waves.AsReadOnly(), volume, (pitch.Min / 100, pitch.Max / 100), level, compatibility, dry, distanceVariant, directionalVariant );
 
 		void AddWave( string wave )
 		{
 			int prefix = 0;
 			bool waveDry = false;
 			bool waveDistanceVariant = false;
+			bool waveDirectionalVariant = false;
 			while ( prefix < wave.Length && "*?!#><^@)}(".Contains( wave[prefix] ) )
 			{
-				if ( "?!><(".Contains( wave[prefix] ) )
+				if ( "?!>(".Contains( wave[prefix] ) )
 					throw new NotSupportedException( $"{path}: sound '{root.Name}' uses unsupported wave encoding '{wave}'." );
 				waveDistanceVariant |= wave[prefix] == '^';
+				waveDirectionalVariant |= wave[prefix] == '<';
 				waveDry |= wave[prefix++] == '#';
 			}
 			if ( waves.Count > 0 && dry != waveDry )
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes dry and reverberated random waves." );
 			if ( waves.Count > 0 && distanceVariant != waveDistanceVariant )
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes distance-variant and ordinary waves." );
+			if (waves.Count > 0 && directionalVariant != waveDirectionalVariant || waveDistanceVariant && waveDirectionalVariant)
+				throw new NotSupportedException($"{path}: sound '{root.Name}' mixes incompatible stereo encodings.");
 			dry = waveDry;
 			distanceVariant = waveDistanceVariant;
+			directionalVariant = waveDirectionalVariant;
 			wave = ScriptManifest.ContentPath( wave[prefix..] );
 			if ( wave.Contains( '$' ) || (!wave.EndsWith( ".wav" ) && !wave.EndsWith( ".mp3" )) )
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' uses unsupported wave '{wave}'." );
