@@ -208,7 +208,10 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				var point = Vector3.Lerp( Vector3.Lerp( c[0], c[1], u ), Vector3.Lerp( c[3], c[2], u ), v );
 				reader.BaseStream.Position = bsp.Lumps[33].Offset + (firstVertex + y * side + x) * 20;
 				point += LambdaWarsBsp.ReadVector( reader ) * reader.ReadSingle();
-				group.Vertices.Add( MakeVertex( point, normal, info, data ) );
+				var authoredAlpha = reader.ReadSingle();
+				if ( !float.IsFinite( authoredAlpha ) || authoredAlpha is < 0 or > 255 )
+					throw new InvalidDataException( "Displacement blend alpha must be finite and between 0 and 255." );
+				group.Vertices.Add( MakeVertex( point, normal, info, data, authoredAlpha / 255.0f ) );
 				collisionVertices.Add( point );
 			}
 		}
@@ -227,11 +230,11 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 	}
 
-	private static Vertex MakeVertex( Vector3 point, Vector3 normal, LambdaWarsBsp.TextureInfo info, LambdaWarsBsp.TextureData data )
+	private static MapVertex MakeVertex( Vector3 point, Vector3 normal, LambdaWarsBsp.TextureInfo info, LambdaWarsBsp.TextureData data, float terrainBlend = 0 )
 	{
 		var u = new Vector3( info.U.x, info.U.y, info.U.z );
 		var v = new Vector3( info.V.x, info.V.y, info.V.z );
-		return new Vertex( point, normal, u.Normal, new Vector2( (point.Dot( u ) + info.U.w) / Math.Max( data.Width, 1 ), (point.Dot( v ) + info.V.w) / Math.Max( data.Height, 1 ) ) );
+		return new MapVertex( point, normal, new Vector4( u.Normal, 1 ), new Vector2( (point.Dot( u ) + info.U.w) / Math.Max( data.Width, 1 ), (point.Dot( v ) + info.V.w) / Math.Max( data.Height, 1 ) ), new Vector4( 1, 1, 1, terrainBlend ) );
 	}
 
 	private void AddEntityProps( LambdaWarsBsp bsp )
@@ -477,9 +480,28 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				builder.AddCollisionHull( hull );
 		}
 	}
+	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential )]
+	private struct MapVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Vector4 sourceColor )
+	{
+		[VertexLayout.Position]
+		public Vector3 Position = position;
+
+		[VertexLayout.Normal]
+		public Vector3 Normal = normal;
+
+		[VertexLayout.Tangent]
+		public Vector4 Tangent = tangent;
+
+		[VertexLayout.TexCoord]
+		public Vector2 Texcoord = texcoord;
+
+		[VertexLayout.Color]
+		public Vector4 SourceColor = sourceColor;
+	}
+
 	private sealed class Geometry
 	{
-		internal List<Vertex> Vertices { get; } = new();
+		internal List<MapVertex> Vertices { get; } = new();
 		internal List<int> Indices { get; } = new();
 	}
 }

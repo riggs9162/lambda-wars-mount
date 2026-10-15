@@ -120,7 +120,7 @@ internal static class LambdaWarsModelInfo
 
 	private static readonly string[] TextureParameters =
 	[
-		"$basetexture", "$basetexture2", "$bumpmap", "$bumpmap2", "$detail", "$envmap", "$envmapmask",
+		"$basetexture", "$basetexture2", "$basetexture3", "$basetexture4", "$bumpmap", "$bumpmap2", "$detail", "$envmap", "$envmapmask",
 		"$selfillummask", "$phongexponenttexture", "$lightwarptexture", "$iris", "$corneatexture", "$ambientoccltexture",
 		"$texture2", "$normalmap", "$normalmap2", "$refracttinttexture"
 	];

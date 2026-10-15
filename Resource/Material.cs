@@ -59,6 +59,7 @@ internal sealed partial class SourceMaterialBuilder
 			"aftershock" => CreateRefract( false, resourceName, aftershock: true ),
 			"volumeclouds" => CreateVolumeClouds( resourceName ),
 			"monitorscreen" => CreateMonitor( resourceName ),
+			"worldvertextransition" => CreateTerrain( resourceName ),
 			"vertexlitgeneric" or "lightmappedgeneric" or "unlitgeneric" or "vortwarp"
 				=> CreateSurface( shaderName, parameters, transforms, alpha, animation, resourceName ),
 			_ => throw new NotSupportedException( $"{FullPath}: unsupported Source material shader '{shaderName}'." )
