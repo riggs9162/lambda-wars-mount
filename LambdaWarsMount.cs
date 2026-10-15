@@ -199,7 +199,7 @@ public sealed class LambdaWarsMount : BaseMount
 					PreviewPath = overview.IsValid ? overview.TexturePath : "",
 					Overview = overview,
 					Starts = bsp.Starts.Select( start => new { start.OwnerNumber, start.GroupName, start.Position, start.Rotation } ).ToArray(),
-					Entities = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) is "control_point" or "trigger_capture_area" or "scrap_marker" or "scrap_marker_small" )
+					Entities = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) is "control_point" or "trigger_capture_area" or "scrap_marker" or "scrap_marker_small" or "func_nav_blocker" )
 						.Select( entity => new
 						{
 							ClassName = entity.GetValueOrDefault( "classname", "" ),
