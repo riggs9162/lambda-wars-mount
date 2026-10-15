@@ -52,6 +52,7 @@ public sealed class LambdaWarsMount : BaseMount
 			activeCatalog = ReadMapCatalog( CurrentIndex );
 		}
 		LambdaWarsContentAliases.Apply( this );
+		PrepareTextureFrames( CurrentIndex );
 		installationPath = Path.GetFullPath( directory );
 		ContentRevision++;
 		IsInstalled = true;
