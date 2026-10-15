@@ -58,8 +58,8 @@ internal sealed class LambdaWarsImportBudget : IDisposable
 		const long allocationBlock = 64L * 1024 * 1024;
 		var estimate = checked(decodedUploadBytes * 4 + 256L * 1024 * 1024);
 		var requested = Math.Max( growthLimit, checked((estimate + allocationBlock - 1) / allocationBlock * allocationBlock) );
-		if ( requested > 2L * 1024 * 1024 * 1024 )
-			throw new InvalidDataException( "Original map resource estimates exceed the 2 GB import growth ceiling." );
+		if ( requested > 3L * 1024 * 1024 * 1024 )
+			throw new InvalidDataException( "Original map resource estimates exceed the 3 GB import growth ceiling." );
 
 		var memory = LambdaWarsImportMemory.Read();
 		var reserve = LambdaWarsImportMemory.Reserve( memory.Total );

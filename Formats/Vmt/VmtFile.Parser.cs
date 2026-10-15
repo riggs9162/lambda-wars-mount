@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Text;
 
 namespace Sandbox.Mounting.Source1;
@@ -138,12 +139,19 @@ internal sealed partial class VmtFile
 		private bool ReadConditions()
 		{
 			var accepted = true;
-			while ( Peek().Kind == TokenKind.Condition )
+			while ( Peek().Kind == TokenKind.Condition && !IsVector( Peek() ) )
 			{
 				var condition = Take();
 				accepted &= new Condition( condition.Text, path, condition.Line, context ).Evaluate();
 			}
 			return accepted;
+		}
+
+		private static bool IsVector( Token token )
+		{
+			var values = token.Text.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
+			return values.Length is >= 2 and <= 4 && values.All( value =>
+				float.TryParse( value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number ) && float.IsFinite( number ) );
 		}
 
 		private bool ReadKeyCondition( Token key, out string name )
@@ -201,6 +209,8 @@ internal sealed partial class VmtFile
 					node = new VmtNode( name, null, ReadBlockContents( depth + 1 ) );
 				else if ( value.Kind == TokenKind.Value )
 					node = new VmtNode( name, value.Text, Array.Empty<VmtNode>() );
+				else if ( value.Kind == TokenKind.Condition && IsVector( value ) )
+					node = new VmtNode( name, $"[{value.Text}]", Array.Empty<VmtNode>() );
 				else
 					throw new InvalidDataException( $"Missing VMT value for {key.Text} in {path}:{key.Line}." );
 				accepted &= ReadConditions();
