@@ -56,14 +56,18 @@ public abstract partial class BaseMount
 		}
 	}
 
+	/// <summary>Reuses live decoded models without retaining CPU geometry after its consumers release it.</summary>
 	internal SourceModel ReadSourceModel( string path )
 	{
 		lock ( indexLock )
 		{
 			path = path.Replace( '\\', '/' );
-			if ( !index.ModelSources.TryGetValue( path, out var model ) )
-				index.ModelSources.Add( path, model = new Lazy<SourceModel>( () => SourceModel.Read( this, path ) ) );
-			return model.Value;
+			if ( index.ModelSources.TryGetValue( path, out var cached ) && cached.TryGetTarget( out var existing ) )
+				return existing;
+
+			var model = SourceModel.Read( this, path );
+			index.ModelSources[path] = new WeakReference<SourceModel>( model );
+			return model;
 		}
 	}
 

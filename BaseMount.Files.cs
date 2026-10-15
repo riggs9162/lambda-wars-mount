@@ -71,7 +71,7 @@ public abstract partial class BaseMount
 		public readonly List<string> PropDataScripts = [];
 		public readonly Dictionary<string, Lazy<SourceMaterial>> MaterialSources = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, Lazy<SourceTexture>> TextureSources = new( StringComparer.OrdinalIgnoreCase );
-		public readonly Dictionary<string, Lazy<SourceModel>> ModelSources = new( StringComparer.OrdinalIgnoreCase );
+		public readonly Dictionary<string, WeakReference<SourceModel>> ModelSources = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<Material, SourceMaterialVariant> MaterialVariants = new( ReferenceEqualityComparer.Instance );
 		public Texture CameraRenderTarget;
 

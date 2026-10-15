@@ -118,9 +118,9 @@ public sealed class LambdaWarsMount : BaseMount
 			try
 			{
 				using var stream = next.Files[$"maps/{mapId}.bsp"].Open();
-				using var bytes = new MemoryStream();
-				stream.CopyTo( bytes );
-				var bsp = new LambdaWarsBsp( bytes.ToArray() );
+				var bytes = new byte[checked((int)stream.Length)];
+				stream.ReadExactly( bytes );
+				var bsp = new LambdaWarsBsp( bytes );
 				IndexMapPackage( next, bsp.GetLump( 40 ) );
 				PrepareTextureFrames( next );
 				pendingCatalog = ReadMapCatalog( next );
@@ -299,7 +299,7 @@ public sealed class LambdaWarsMount : BaseMount
 			return existing;
 
 		var bsp = new LambdaWarsBsp( GetFileBytes( filename ) );
-		PrepareMapPackage( filename, bsp.GetLump( 40 ) );
+		PrepareMapPackage( filename );
 		using var propSource = bsp.Open();
 		var staticProps = LambdaWarsStaticPropReader.Read( propSource.BaseStream );
 		budget.SetStage( "Checking static-prop dependencies" );
@@ -317,7 +317,7 @@ public sealed class LambdaWarsMount : BaseMount
 		return prepared;
 	}
 
-	internal void PrepareMapPackage( string filename, byte[] package )
+	internal void PrepareMapPackage( string filename )
 	{
 		if ( string.Equals( activePackage, filename, StringComparison.OrdinalIgnoreCase ) )
 			return;
