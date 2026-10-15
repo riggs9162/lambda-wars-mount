@@ -28,6 +28,9 @@ internal sealed class LambdaWarsMapPreparationLoader : ResourceLoader<LambdaWars
 			}
 
 			budget.ReserveResources( prepared.DecodedUploadBytes );
+			var scene = SceneFile.Load( $"mount://{Host.Ident}/maps/{Host.ActiveMapId}.bsp.scene" );
+			if ( scene is null )
+				throw new InvalidDataException( "The prepared battlefield scene could not be imported." );
 			return Json.Serialize( new { Success = true, IsAvailable = true, Error = "" } );
 		}
 		catch ( Exception exception )
