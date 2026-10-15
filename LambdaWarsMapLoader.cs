@@ -213,6 +213,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		var firstVertex = reader.ReadInt32();
 		reader.ReadInt32();
 		var power = reader.ReadInt32();
+		var multiblend = bsp.GetMultiBlendOffset( displacement );
 		if ( power is < 2 or > 4 ) throw new InvalidDataException( "Invalid displacement power." );
 		var side = (1 << power) + 1;
 		var nearest = Enumerable.Range( 0, 4 ).OrderBy( i => corners[i].DistanceSquared( start ) ).First();
@@ -232,7 +233,18 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				var authoredAlpha = reader.ReadSingle();
 				if ( !float.IsFinite( authoredAlpha ) )
 					throw new InvalidDataException( "Displacement blend alpha must be finite." );
-				group.Vertices.Add( MakeVertex( point, normal, info, data, Math.Clamp( authoredAlpha / 255.0f, 0, 1 ) ) );
+				var vertex = MakeVertex( point, normal, info, data, Math.Clamp( authoredAlpha / 255.0f, 0, 1 ) );
+				if ( multiblend >= 0 )
+				{
+					reader.BaseStream.Position = bsp.Lumps[63].Offset + (multiblend + y * side + x) * 80;
+					var weights = ReadBlendVector( reader );
+					vertex.BlendAlpha = ReadBlendVector( reader );
+					vertex.BlendColor1 = ReadBlendColor( reader, weights.x );
+					vertex.BlendColor2 = ReadBlendColor( reader, weights.y );
+					vertex.BlendColor3 = ReadBlendColor( reader, weights.z );
+					vertex.BlendColor4 = ReadBlendColor( reader, weights.w );
+				}
+				group.Vertices.Add( vertex );
 				collisionVertices.Add( point );
 			}
 		}
@@ -249,6 +261,22 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				collisionIndices.AddRange( triangles.Select( i => i + collision ) );
 			}
 		}
+	}
+
+	private static Vector4 ReadBlendVector( BinaryReader reader )
+	{
+		var value = new Vector4( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+		if ( !float.IsFinite( value.x ) || !float.IsFinite( value.y ) || !float.IsFinite( value.z ) || !float.IsFinite( value.w ) )
+			throw new InvalidDataException( "Displacement blend values must be finite." );
+		return value;
+	}
+
+	private static Vector4 ReadBlendColor( BinaryReader reader, float weight )
+	{
+		var color = LambdaWarsBsp.ReadVector( reader );
+		if ( !float.IsFinite( color.x ) || !float.IsFinite( color.y ) || !float.IsFinite( color.z ) )
+			throw new InvalidDataException( "Displacement blend colors must be finite." );
+		return new Vector4( color, weight );
 	}
 
 	private static MapVertex MakeVertex( Vector3 point, Vector3 normal, LambdaWarsBsp.TextureInfo info, LambdaWarsBsp.TextureData data, float terrainBlend = 0 )
@@ -487,6 +515,21 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 		[VertexLayout.Color]
 		public Vector4 SourceColor = sourceColor;
+
+		[VertexLayout.TexCoord( 3 )]
+		public Vector4 BlendAlpha = Vector4.Zero;
+
+		[VertexLayout.TexCoord( 4 )]
+		public Vector4 BlendColor1 = new( 1, 1, 1, 1 );
+
+		[VertexLayout.TexCoord( 5 )]
+		public Vector4 BlendColor2 = new( 1, 1, 1, 0 );
+
+		[VertexLayout.TexCoord( 6 )]
+		public Vector4 BlendColor3 = new( 1, 1, 1, 0 );
+
+		[VertexLayout.TexCoord( 7 )]
+		public Vector4 BlendColor4 = new( 1, 1, 1, 0 );
 	}
 
 	private sealed class Geometry

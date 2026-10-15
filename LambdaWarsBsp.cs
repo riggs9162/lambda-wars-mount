@@ -56,6 +56,40 @@ internal sealed class LambdaWarsBsp
 				Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) ) ) ).OrderBy( start => start.OwnerNumber ).ToArray();
 	}
 
+	private int[] multiBlendOffsets;
+
+	/// <summary>Indexes packed four-layer records by counting only flagged grids in displacement order.</summary>
+	internal int GetMultiBlendOffset( int displacement )
+	{
+		if ( multiBlendOffsets is null )
+		{
+			if ( Lumps[26].Length % 176 != 0 || Lumps[63].Length % 80 != 0 || Lumps[63].FourCc != 0 )
+				throw new InvalidDataException( "Unsupported or truncated displacement multiblend data." );
+			var offsets = new int[Lumps[26].Length / 176];
+			var offset = 0;
+			using var reader = Open();
+			for ( var i = 0; i < offsets.Length; i++ )
+			{
+				reader.BaseStream.Position = Lumps[26].Offset + i * 176 + 20;
+				var power = reader.ReadInt32();
+				var flags = reader.ReadUInt32();
+				if ( power is < 2 or > 4 )
+					throw new InvalidDataException( "Invalid displacement power." );
+				var count = ((1 << power) + 1) * ((1 << power) + 1);
+				var hasBlend = (flags & 0xc0000000) == 0xc0000000;
+				offsets[i] = hasBlend ? offset : -1;
+				if ( hasBlend )
+					offset = checked(offset + count);
+			}
+			if ( (long)offset * 80 != Lumps[63].Length )
+				throw new InvalidDataException( "Displacement multiblend count does not match its BSP lump." );
+			multiBlendOffsets = offsets;
+		}
+		if ( (uint)displacement >= multiBlendOffsets.Length )
+			throw new InvalidDataException( "Invalid displacement index." );
+		return multiBlendOffsets[displacement];
+	}
+
 	internal static LambdaWarsBsp ReadMetadata( Stream source )
 	{
 		if ( !source.CanSeek )

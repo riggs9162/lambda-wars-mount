@@ -122,7 +122,8 @@ internal static class LambdaWarsModelInfo
 	[
 		"$basetexture", "$basetexture2", "$basetexture3", "$basetexture4", "$bumpmap", "$bumpmap2", "$detail", "$envmap", "$envmapmask",
 		"$selfillummask", "$phongexponenttexture", "$lightwarptexture", "$iris", "$corneatexture", "$ambientoccltexture",
-		"$texture2", "$normalmap", "$normalmap2", "$refracttinttexture"
+		"$texture2", "$normalmap", "$normalmap2", "$refracttinttexture", "$blendmodulatetexture",
+		"$spectexture", "$spectexture2", "$spectexture3", "$spectexture4"
 	];
 
 	private static string FindMaterial( BaseMount mount, MdlFile mdl, string name )

@@ -137,6 +137,7 @@ internal static class LambdaWarsMapResourcePreflight
 			RequireStride( bsp, 14, 48 );
 			RequireStride( bsp, 44, 4 );
 			RequireStride( bsp, 26, 176 );
+			RequireStride( bsp, 63, 80 );
 			var names = ReadTextureNames( bsp, reader );
 			var modelIndices = new HashSet<int> { 0 };
 			foreach ( var entity in bsp.Entities )
@@ -349,6 +350,7 @@ internal static class LambdaWarsMapResourcePreflight
 	[
 		"$basetexture", "$basetexture2", "$basetexture3", "$basetexture4", "$bumpmap", "$bumpmap2", "$detail", "$envmap", "$envmapmask",
 		"$selfillummask", "$phongexponenttexture", "$lightwarptexture", "$iris", "$corneatexture", "$ambientoccltexture",
-		"$texture2", "$normalmap", "$normalmap2", "$refracttinttexture"
+		"$texture2", "$normalmap", "$normalmap2", "$refracttinttexture", "$blendmodulatetexture",
+		"$spectexture", "$spectexture2", "$spectexture3", "$spectexture4"
 	];
 }
