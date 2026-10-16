@@ -133,6 +133,39 @@ internal sealed class LambdaWarsBsp
 		return new LambdaWarsBsp( compact.ToArray(), fingerprint );
 	}
 
+	/// <summary>Reads one validated lump directly from a BSP without allocating the complete map.</summary>
+	internal static byte[] ReadLump( Stream source, int index )
+	{
+		if ( (uint)index >= 64 )
+			throw new ArgumentOutOfRangeException( nameof( index ) );
+		if ( !source.CanSeek )
+			throw new NotSupportedException( "Map lump reading requires a seekable source." );
+
+		var originalPosition = source.Position;
+		try
+		{
+			source.Position = 0;
+			using var reader = new BinaryReader( source, Encoding.UTF8, true );
+			if ( reader.ReadUInt32() != 0x50534256 || reader.ReadInt32() is not (20 or 21) )
+				throw new InvalidDataException( "Unsupported Source BSP signature or version." );
+
+			source.Position = 8 + index * 16;
+			var offset = reader.ReadInt32();
+			var length = reader.ReadInt32();
+			if ( offset < 0 || length < 0 || (long)offset + length > source.Length )
+				throw new InvalidDataException( $"BSP lump {index} is outside the file." );
+
+			var bytes = new byte[length];
+			source.Position = offset;
+			source.ReadExactly( bytes );
+			return bytes;
+		}
+		finally
+		{
+			source.Position = originalPosition;
+		}
+	}
+
 		internal BBox EntityBounds( Dictionary<string, string> entity )
 	{
 		var origin = Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );

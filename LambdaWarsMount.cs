@@ -118,10 +118,8 @@ public sealed class LambdaWarsMount : BaseMount
 			try
 			{
 				using var stream = next.Files[$"maps/{mapId}.bsp"].Open();
-				var bytes = new byte[checked((int)stream.Length)];
-				stream.ReadExactly( bytes );
-				var bsp = new LambdaWarsBsp( bytes );
-				IndexMapPackage( next, bsp.GetLump( 40 ) );
+				var bsp = LambdaWarsBsp.ReadMetadata( stream );
+				IndexMapPackage( next, LambdaWarsBsp.ReadLump( stream, 40 ) );
 				PrepareTextureFrames( next );
 				pendingCatalog = ReadMapCatalog( next );
 				stagedMapModelCount = bsp.Lumps[14].Length / 48;
@@ -239,8 +237,9 @@ public sealed class LambdaWarsMount : BaseMount
 			var modelCount = stagedMapModelCount;
 			if ( modelCount is null )
 			{
-				var selected = new LambdaWarsBsp( GetFileBytes( mapPath ) );
-				IndexMapPackage( selected.GetLump( 40 ) );
+				using var stream = OpenContentFile( mapPath );
+				var selected = LambdaWarsBsp.ReadMetadata( stream );
+				IndexMapPackage( LambdaWarsBsp.ReadLump( stream, 40 ) );
 				PrepareTextureFrames( CurrentIndex );
 				modelCount = selected.Lumps[14].Length / 48;
 			}
