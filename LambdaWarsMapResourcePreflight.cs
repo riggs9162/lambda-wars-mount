@@ -289,7 +289,7 @@ internal static class LambdaWarsMapResourcePreflight
 				var header = new VtfFile( source, onlyHeader: true );
 				TextureLoader.ValidateSize( header, path, null );
 				source.Position = 0;
-				var texture = VtfFile.FromTextureStream( source, null );
+				var texture = VtfFile.InspectTextureStream( source );
 				textures.Add( path, EstimateUpload( path, texture.Header, texture.FrameCount, texture.FaceCount, texture.MipmapCount ) );
 			}
 			catch ( Exception exception ) when ( exception is IOException or InvalidDataException or NotSupportedException or ArgumentException or OverflowException )

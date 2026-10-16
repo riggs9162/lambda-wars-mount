@@ -31,6 +31,24 @@ internal sealed partial class VtfFile
 		return new VtfFile( stream, false, frame, true );
 	}
 
+	/// <summary>Validates the complete image payload without allocating pixel storage for dependency inspection.</summary>
+	internal static VtfFile InspectTextureStream( Stream stream )
+	{
+		var texture = new VtfFile( stream, onlyHeader: true );
+		var size = 0;
+		for ( var mip = texture.MipmapCount - 1; mip >= 0; mip-- )
+		{
+			var length = GetImageDataSize( Math.Max( 1, texture.Header.Width >> mip ), Math.Max( 1, texture.Header.Height >> mip ), 1, 1, texture.Header.HiResFormat );
+			size = checked(size + checked(length * texture.FrameCount * texture.FaceCount * Math.Max( 1, texture.ZSliceCount >> mip )));
+		}
+		if ( size > Array.MaxLength )
+			throw new InvalidDataException( "VTF image data is truncated or too large." );
+
+		Skip( stream, texture._imageOffset - texture.Header.HeaderSize );
+		Skip( stream, size );
+		return texture;
+	}
+
 	public static int GetImageDataSize( int width, int height, int depth, int mipCount, VtfFormat format )
 	{
 		if ( width < 0 || height < 0 || depth < 0 || mipCount < 0 || mipCount > 32 )

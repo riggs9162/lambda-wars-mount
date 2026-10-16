@@ -49,7 +49,7 @@ internal static class LambdaWarsModelInfo
 					var metadata = new VtfFile( stream, onlyHeader: true );
 					TextureLoader.ValidateSize( metadata, texturePath, null );
 					stream.Position = 0;
-					var texture = VtfFile.FromTextureStream( stream, null );
+					var texture = VtfFile.InspectTextureStream( stream );
 					textures.Add( texturePath, new
 					{
 						Path = texturePath,
