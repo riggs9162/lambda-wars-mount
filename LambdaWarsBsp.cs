@@ -1,5 +1,7 @@
 using System;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -10,6 +12,7 @@ internal sealed class LambdaWarsBsp
 {
 	internal readonly record struct Lump( int Offset, int Length, int Version, int FourCc );
 	internal readonly record struct Face( int Plane, bool Back, int FirstEdge, int EdgeCount, int TextureInfo, int Displacement );
+	internal readonly record struct Edge( ushort A, ushort B );
 	internal readonly record struct TextureInfo( Vector4 U, Vector4 V, int Flags, int Data );
 	internal readonly record struct TextureData( int Name, int Width, int Height );
 	internal readonly record struct Start( int OwnerNumber, string GroupName, Vector3 Position, Angles Rotation );
@@ -181,6 +184,16 @@ internal sealed class LambdaWarsBsp
 	}
 
 	internal BinaryReader Open() => new( new MemoryStream( Bytes, false ) );
+
+	/// <summary>Views uncompressed fixed-size records in the retained BSP storage without allocating a second array.</summary>
+	internal ReadOnlySpan<T> ReadLumpRecords<T>( int index ) where T : unmanaged
+	{
+		var lump = Lumps[index];
+		if ( !BitConverter.IsLittleEndian || lump.FourCc != 0 || lump.Length % Unsafe.SizeOf<T>() != 0 )
+			throw new InvalidDataException( $"Unsupported or truncated BSP lump {index}." );
+
+		return MemoryMarshal.Cast<byte, T>( Bytes.AsSpan( lump.Offset, lump.Length ) );
+	}
 
 	internal byte[] GetLump( int index )
 	{

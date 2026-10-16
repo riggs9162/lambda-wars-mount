@@ -93,17 +93,9 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	{
 		budget.SetStage( $"Reading geometry for BSP model {modelIndex}" );
 		using var reader = bsp.Open();
-		var vertices = new Vector3[bsp.Lumps[3].Length / 12];
-		reader.BaseStream.Position = bsp.Lumps[3].Offset;
-		for ( var i = 0; i < vertices.Length; i++ ) vertices[i] = LambdaWarsBsp.ReadVector( reader );
-
-		var edges = new (int A, int B)[bsp.Lumps[12].Length / 4];
-		reader.BaseStream.Position = bsp.Lumps[12].Offset;
-		for ( var i = 0; i < edges.Length; i++ ) edges[i] = (reader.ReadUInt16(), reader.ReadUInt16());
-
-		var surfEdges = new int[bsp.Lumps[13].Length / 4];
-		reader.BaseStream.Position = bsp.Lumps[13].Offset;
-		for ( var i = 0; i < surfEdges.Length; i++ ) surfEdges[i] = reader.ReadInt32();
+		var vertices = bsp.ReadLumpRecords<Vector3>( 3 );
+		var edges = bsp.ReadLumpRecords<LambdaWarsBsp.Edge>( 12 );
+		var surfEdges = bsp.ReadLumpRecords<int>( 13 );
 
 		var textureInfos = new LambdaWarsBsp.TextureInfo[bsp.Lumps[6].Length / 72];
 		for ( var i = 0; i < textureInfos.Length; i++ )
