@@ -9,7 +9,7 @@ internal sealed class SourceTexture : IDisposable
 	private readonly BaseMount.SourceFile file;
 	private readonly string texturePath;
 	private readonly object frameLock = new();
-	private readonly Dictionary<int, VtfFile> decodedFrames = [];
+	private readonly Dictionary<int, WeakReference<VtfFile>> decodedFrames = [];
 	private bool disposed;
 
 	internal SourceTexture( VtfFile metadata, BaseMount.SourceFile file, string texturePath )
@@ -46,6 +46,7 @@ internal sealed class SourceTexture : IDisposable
 		return FrameCount == 1 ? GetFrame( 0 ) : Texture.Load( TextureLoader.FramePath( texturePath[..^5], null ), false );
 	}
 
+	/// <summary>Reuses live decal pixels while allowing completed CPU decodes to be reclaimed independently of the mount.</summary>
 	public VtfFile ReadFrame( int? frame = null )
 	{
 		lock ( frameLock )
@@ -55,10 +56,10 @@ internal sealed class SourceTexture : IDisposable
 				throw new ArgumentOutOfRangeException( nameof( frame ), frame, $"VTF frame must be between 0 and {FrameCount - 1}." );
 			TextureLoader.ValidateSize( metadata, texturePath, frame );
 			var key = frame ?? -1;
-			if ( decodedFrames.TryGetValue( key, out var decoded ) ) return decoded;
+			if ( decodedFrames.TryGetValue( key, out var cached ) && cached.TryGetTarget( out var existing ) ) return existing;
 			using var stream = file.Open();
-			decoded = new VtfFile( stream, metadata, frame );
-			decodedFrames.Add( key, decoded );
+			var decoded = new VtfFile( stream, metadata, frame );
+			decodedFrames[key] = new WeakReference<VtfFile>( decoded );
 			return decoded;
 		}
 	}
@@ -71,8 +72,8 @@ internal sealed class SourceTexture : IDisposable
 			if ( frame.HasValue && (uint)frame.Value >= FrameCount )
 				throw new ArgumentOutOfRangeException( nameof( frame ), frame, $"VTF frame must be between 0 and {FrameCount - 1}." );
 			TextureLoader.ValidateSize( metadata, texturePath, frame );
-			if ( decodedFrames.TryGetValue( frame ?? -1, out var decoded ) )
-				return decoded;
+			if ( decodedFrames.TryGetValue( frame ?? -1, out var cached ) && cached.TryGetTarget( out var existing ) )
+				return existing;
 			using var stream = file.Open();
 			return new VtfFile( stream, metadata, frame, textureData: true );
 		}
