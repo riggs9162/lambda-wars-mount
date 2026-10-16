@@ -187,7 +187,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		budget.SetStage( $"Preparing collision for BSP model {modelIndex}" );
 		if ( collisionIndices.Count > 0 )
 			builder.AddCollisionMesh( collisionVertices, collisionIndices );
-        AddBrushCollision( bsp, reader, builder, modelIndex, budget );
+		AddBrushCollision( bsp, reader, builder, modelIndex, budget, textureInfos, textureData, textureNames );
 		budget.SetStage( $"Creating BSP model {modelIndex}" );
 		return builder.Create();
 	}
@@ -471,7 +471,8 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 	}
 
-	private static void AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget )
+	/// <summary>Imports solid, visibly textured brush volumes while preserving their hidden closing and bevel planes.</summary>
+	private static void AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames )
 	{
 		var planes = new (Vector3 Normal, float Distance)[bsp.Lumps[1].Length / 20];
 		for ( var i = 0; i < planes.Length; i++ )
@@ -487,17 +488,29 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			var firstSide = reader.ReadInt32();
 			var sideCount = reader.ReadInt32();
 			var contents = reader.ReadInt32();
-			if ( (contents & 0x3000b) == 0 || sideCount < 4 )
+			if ( (contents & 0x1) == 0 || sideCount < 4 )
 				continue;
 			if ( sideCount > 1024 )
 				throw new InvalidDataException( "A collision brush exceeds the current import work budget." );
 
 			var sides = new (Vector3 Normal, float Distance)[sideCount];
+			var hasVisibleSurface = false;
 			for ( var side = 0; side < sideCount; side++ )
 			{
 				reader.BaseStream.Position = bsp.Lumps[19].Offset + (firstSide + side) * 8;
 				sides[side] = planes[reader.ReadUInt16()];
+				var infoIndex = reader.ReadInt16();
+				if ( infoIndex < 0 )
+					continue;
+
+				var info = textureInfos[infoIndex];
+				var name = textureNames[textureData[info.Data].Name];
+				if ( !name.StartsWith( "tools/", StringComparison.OrdinalIgnoreCase ) && (info.Flags & 0x84) == 0 )
+					hasVisibleSurface = true;
 			}
+
+			if ( !hasVisibleSurface )
+				continue;
 
 			var hull = LambdaWarsBrushHull.Build( sides, budget.Check );
 			if ( hull.Count >= 4 )
