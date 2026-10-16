@@ -30,7 +30,7 @@ internal sealed class LambdaWarsMapOverview
 				throw new InvalidDataException( "The original overview settings exceed 64 KB." );
 			using var text = new StreamReader( settings, Encoding.UTF8 );
 			var roots = VmtFile.ParseKeyValues( text.ReadToEnd(), path );
-			if ( roots.Count != 1 || !roots[0].IsBlock || !roots[0].Name.Equals( mapId, StringComparison.OrdinalIgnoreCase ) )
+			if ( roots.Count != 1 || !roots[0].IsBlock )
 				throw new InvalidDataException( "The original overview must contain one settings block." );
 			var values = roots[0].Values;
 			var material = values.GetValueOrDefault( "material", "" ).Replace( '\\', '/' );
@@ -44,8 +44,8 @@ internal sealed class LambdaWarsMapOverview
 			var originX = Number( values, "pos_x" );
 			var originY = Number( values, "pos_y" );
 			var scale = Number( values, "scale" );
-			var rotate = Number( values, "rotate" );
-			var zoom = Number( values, "zoom" );
+			var rotate = values.ContainsKey( "rotate" ) ? Number( values, "rotate" ) : 0;
+			var zoom = values.ContainsKey( "zoom" ) ? Number( values, "zoom" ) : 1;
 			if ( scale <= 0 || zoom <= 0 || header.Width is < 1 or > 4096 || header.Height is < 1 or > 4096 || rotate is not (0 or 1)
 				|| !float.IsFinite( scale * header.Width ) || !float.IsFinite( scale * header.Height ) )
 				throw new InvalidDataException( "The original overview dimensions, scale or rotation are invalid." );
