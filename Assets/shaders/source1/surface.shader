@@ -637,7 +637,10 @@ PS
 				return g_vWireframeColor;
 			if ( ToolsVis::WantsToolsVis() )
 				return ShadingModelStandard::DoToolsVis( output, material, lighting );
-			return DoAtmospherics( material.WorldPosition, i.vPositionSs.xy, output, S_ADDITIVE_BLEND != 0 );
+			output.rgb = S_ADDITIVE_BLEND != 0
+				? output.rgb * Fog::Transmittance( material.WorldPosition, i.vPositionSs.xy )
+				: Fog::Apply( material.WorldPosition, i.vPositionSs.xy, output.rgb );
+			return output;
 			#endif
 		}
 	}
