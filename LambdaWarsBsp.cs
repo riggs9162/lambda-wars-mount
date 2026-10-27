@@ -21,6 +21,7 @@ internal sealed class LambdaWarsBsp
 	private readonly string sourceFingerprint;
 	internal Lump[] Lumps { get; } = new Lump[64];
 	internal IReadOnlyList<Dictionary<string, string>> Entities { get; }
+	internal IReadOnlyDictionary<Dictionary<string, string>, string[]> BuildingCountOutputs { get; }
 	internal IReadOnlyList<Start> Starts { get; }
 		internal BBox Bounds
 	{
@@ -51,8 +52,18 @@ internal sealed class LambdaWarsBsp
 		}
 
 		var text = Encoding.UTF8.GetString( GetLump( 0 ) );
-		Entities = Regex.Matches( text, "\\{([^{}]*)\\}" ).Select( match => Regex.Matches( match.Groups[1].Value, "\"([^\"]*)\"\\s*\"([^\"]*)\"" )
-			.GroupBy( field => field.Groups[1].Value, StringComparer.OrdinalIgnoreCase ).ToDictionary( group => group.Key, group => group.Last().Groups[2].Value, StringComparer.OrdinalIgnoreCase ) ).ToArray();
+		var parsedEntities = Regex.Matches( text, "\\{([^{}]*)\\}" ).Select( match =>
+		{
+			var fields = Regex.Matches( match.Groups[1].Value, "\"([^\"]*)\"\\s*\"([^\"]*)\"" );
+			var values = fields.GroupBy( field => field.Groups[1].Value, StringComparer.OrdinalIgnoreCase )
+				.ToDictionary( group => group.Key, group => group.Last().Groups[2].Value, StringComparer.OrdinalIgnoreCase );
+			var outputs = fields.Where( field => field.Groups[1].Value.Equals( "OnBuildingCountChanged", StringComparison.OrdinalIgnoreCase ) )
+				.Select( field => field.Groups[2].Value ).ToArray();
+			return (Values: values, Outputs: outputs);
+		} ).ToArray();
+		Entities = parsedEntities.Select( entity => entity.Values ).ToArray();
+		BuildingCountOutputs = parsedEntities.Where( entity => entity.Outputs.Length > 0 )
+			.ToDictionary( entity => entity.Values, entity => entity.Outputs );
 		Starts = Entities.Where( entity => entity.GetValueOrDefault( "classname" ) == "info_start_wars" )
 			.Select( entity => new Start( int.Parse( entity.GetValueOrDefault( "ownernumber", "0" ), CultureInfo.InvariantCulture ),
 				entity.GetValueOrDefault( "groupname", "" ), Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) ),

@@ -191,7 +191,7 @@ public sealed class LambdaWarsMount : BaseMount
 					PreviewPath = overview.IsValid ? overview.TexturePath : "",
 					Overview = overview,
 					Starts = bsp.Starts.Select( start => new { start.OwnerNumber, start.GroupName, start.Position, start.Rotation } ).ToArray(),
-					Entities = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) is "control_point" or "trigger_capture_area" or "scrap_marker" or "scrap_marker_small" or "func_nav_blocker" )
+					Entities = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) is "control_point" or "trigger_capture_area" or "scrap_marker" or "scrap_marker_small" or "func_nav_blocker" or "unit_maker" or "wars_population_listener" )
 						.Select( entity => new
 						{
 							ClassName = entity.GetValueOrDefault( "classname", "" ),
@@ -199,7 +199,8 @@ public sealed class LambdaWarsMount : BaseMount
 							Rotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) ),
 							BoundsMins = bsp.EntityBounds( entity ).Mins,
 							BoundsMaxs = bsp.EntityBounds( entity ).Maxs,
-							KeyValues = entity
+							KeyValues = entity,
+							BuildingCountOutputs = bsp.BuildingCountOutputs.GetValueOrDefault( entity ) ?? Array.Empty<string>()
 						} ).ToArray(),
 					IsPlayable = false,
 					CanPrepare = MapsEnabled && bsp.Starts.Count > 0,
@@ -240,6 +241,8 @@ public sealed class LambdaWarsMount : BaseMount
 			activePackage = mapPath;
 			for ( var modelIndex = 0; modelIndex < modelCount.Value; modelIndex++ )
 				context.Add( ResourceType.Model, $"{mapPath}.scene.model_{modelIndex}", new LambdaWarsBspModelLoader( mapPath, modelIndex ) );
+			context.Add( ResourceType.Model, $"{mapPath}.scene.sky", new LambdaWarsBspModelLoader( mapPath, 0, true ) );
+			context.Add( ResourceType.Scene, $"{mapPath}.sky", new LambdaWarsMapLoader( mapPath, true ) );
 		}
 		base.Mount( context ).GetAwaiter().GetResult();
 		IsMounted = true;
