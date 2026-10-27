@@ -107,12 +107,13 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			new Vector3( Math.Min( world.Maxs.x, regions.Max( r => r.Maxs.x ) ), Math.Min( world.Maxs.y, regions.Max( r => r.Maxs.y ) ), world.Maxs.z ) );
 	}
 
-	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" so navigation and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
+	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" with matching navigation blockers so pathing and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
 	private void AddNpcClip( LambdaWarsBsp bsp )
 	{
 		using var reader = bsp.Open();
 		var builder = Model.Builder.WithName( $"{Path}.npcclip" );
-		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, npcClip: true ) == 0 )
+		var hullBounds = new List<BBox>();
+		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, npcClip: true, hullBounds ) == 0 )
 			return;
 
 		var clip = new GameObject( true, "npcclip" );
@@ -120,6 +121,14 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		var collider = clip.Components.Create<ModelCollider>();
 		collider.Model = builder.Create();
 		collider.Static = true;
+
+		foreach ( var bounds in hullBounds )
+		{
+			var blocker = new GameObject( true, "npcclip_nav" ) { Parent = clip };
+			var area = blocker.Components.Create<NavMeshArea>();
+			area.IsBlocker = true;
+			area.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Box, Box = bounds };
+		}
 	}
 
 	private Model LoadRegisteredGeometry( int modelIndex )
@@ -505,7 +514,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	}
 
 	/// <summary>Imports solid, visibly textured brush volumes while preserving their hidden closing and bevel planes.</summary>
-	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, bool npcClip = false )
+	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, bool npcClip = false, List<BBox> hullBounds = null )
 	{
 		var added = 0;
 		var planes = new (Vector3 Normal, float Distance)[bsp.Lumps[1].Length / 20];
@@ -552,6 +561,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				continue;
 
 			builder.AddCollisionHull( hull );
+			hullBounds?.Add( BBox.FromPoints( hull ) );
 			added++;
 		}
 		return added;

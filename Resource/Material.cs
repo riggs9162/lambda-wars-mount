@@ -56,6 +56,7 @@ internal sealed partial class SourceMaterialBuilder
 			"modulate" => CreateModulate( parameters, transforms, alpha, animation, resourceName ),
 			"teeth" => CreateTeeth( parameters, resourceName ),
 			"refract" or "core" => CreateRefract( shaderName == "core", resourceName ),
+			"water" => CreateWater( resourceName ),
 			"aftershock" => CreateRefract( false, resourceName, aftershock: true ),
 			"volumeclouds" => CreateVolumeClouds( resourceName ),
 			"monitorscreen" => CreateMonitor( resourceName ),
