@@ -12,6 +12,22 @@ public abstract partial class BaseMount
 		return Material.Load( GetRegisteredContentPath( path, ResourceType.Material ) );
 	}
 
+	/// <summary>Uses Source's inexpensive water path when the material is rendered in a 3D sky scene.</summary>
+	internal Material LoadSkyContentMaterial( string path )
+	{
+		path = VmtFile.NormalizePath( path, ".vmt" );
+		var original = LoadContentMaterial( path );
+		if ( original is null || !original.ShaderName.Contains( "source1/water.shader", StringComparison.OrdinalIgnoreCase ) )
+			return original;
+		var source = GetSourceMaterial( path );
+		var name = $"source1/{Ident}/{path}.sky.vmat";
+		var material = source.CreateSkyWater( name );
+		if ( material is null )
+			return original;
+		TrackMaterialSource( material, source );
+		return material;
+	}
+
 	internal SoundFile LoadContentSound( string path ) =>
 		SoundFile.Load( GetRegisteredContentPath( path, ResourceType.Sound ) );
 

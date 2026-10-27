@@ -39,6 +39,15 @@ internal sealed class SourceMaterial : IDisposable
 		}
 	}
 
+	internal Material CreateSkyWater( string name )
+	{
+		lock ( buildLock )
+		{
+			ObjectDisposedException.ThrowIf( disposed, this );
+			return builder.Value.CreateSkyWater( name );
+		}
+	}
+
 	public void Dispose()
 	{
 		lock ( buildLock )

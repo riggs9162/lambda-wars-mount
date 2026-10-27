@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Sandbox.Mounting.Source1;
 
-internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<LambdaWarsMount>
+internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false ) : SceneLoader<LambdaWarsMount>
 {
 	private LambdaWarsImportBudget budget;
 
@@ -12,6 +12,12 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	{
 		if ( !Host.MapsEnabled )
 			throw new InvalidDataException( "Original 3D map conversion is disabled pending GPU validation." );
+		if ( skyOnly && Host.ActiveMapImportBudget is not null )
+		{
+			budget = Host.ActiveMapImportBudget;
+			BuildPreparedScene();
+			return;
+		}
 		var importScene = Game.ActiveScene;
 		try
 		{
@@ -52,7 +58,23 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		var prepared = Host.PrepareMapContent( filename, budget );
 		var bsp = prepared.Bsp;
 		var staticProps = prepared.StaticProps;
+		var sky = LambdaWarsSkybox.TryCreate( bsp );
 		budget.ReserveResources( prepared.DecodedUploadBytes );
+		if ( skyOnly )
+		{
+			if ( sky is null )
+				return;
+			var skyWorld = new GameObject( true, "3D sky geometry" );
+			var skyModel = Model.Load( $"mount://{Host.Ident}/{filename}.scene.sky.vmdl" );
+			if ( skyModel is null || skyModel.IsError )
+				throw new InvalidDataException( "The 3D sky geometry could not be loaded." );
+			skyWorld.Components.Create<ModelRenderer>().Model = skyModel;
+			AddBrushEntities( bsp, sky, true );
+			AddStaticProps( staticProps, sky, true );
+			AddEntityProps( bsp, sky, true );
+			AddLighting( bsp );
+			return;
+		}
 		var model = LoadRegisteredGeometry( 0 );
 		var world = new GameObject( true, filename );
 		world.Components.Create<ModelRenderer>().Model = model;
@@ -60,15 +82,25 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		collider.Model = model;
 		collider.Static = true;
         budget.SetStage( "Preparing brush entities" );
-        AddBrushEntities( bsp );
+        AddBrushEntities( bsp, sky, false );
         budget.SetStage( "Loading static props" );
-        AddStaticProps( staticProps );
+        AddStaticProps( staticProps, sky, false );
         budget.SetStage( "Loading entity props" );
-        AddEntityProps( bsp );
+        AddEntityProps( bsp, sky, false );
         AddLighting( bsp );
         AddEntityMarkers( bsp );
+		if ( sky is not null )
+		{
+			var scene = SceneFile.Load( $"mount://{Host.Ident}/{filename}.sky.scene" );
+			if ( scene is null )
+				throw new InvalidDataException( "The 3D sky scene could not be imported." );
+			var skyObject = new GameObject( true, "3D sky" );
+			skyObject.WorldPosition = -sky.Origin * sky.Scale;
+			skyObject.WorldScale = Vector3.One * sky.Scale;
+			skyObject.Components.Create<Skybox3D>().SkyboxScene = scene;
+		}
 		budget.SetStage( "Preparing NPC clip volumes" );
-		AddNpcClip( bsp );
+		AddNpcClip( bsp, sky );
 		var navigation = world.Scene.NavMesh;
 		navigation.IsEnabled = true;
 		navigation.IncludeStaticBodies = true;
@@ -108,12 +140,12 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	}
 
 	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" with matching navigation blockers so pathing and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
-	private void AddNpcClip( LambdaWarsBsp bsp )
+	private void AddNpcClip( LambdaWarsBsp bsp, LambdaWarsSkybox sky )
 	{
 		using var reader = bsp.Open();
 		var builder = Model.Builder.WithName( $"{Path}.npcclip" );
 		var hullBounds = new List<BBox>();
-		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, npcClip: true, hullBounds ) == 0 )
+		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, sky, npcClip: true, hullBounds ) == 0 )
 			return;
 
 		var clip = new GameObject( true, "npcclip" );
@@ -133,14 +165,15 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 	private Model LoadRegisteredGeometry( int modelIndex )
 	{
-		var model = Model.Load( $"{Path}.model_{modelIndex}.vmdl" );
+		var model = Model.Load( $"mount://{Host.Ident}/{filename}.scene.model_{modelIndex}.vmdl" );
 		if ( model is null || model.IsError )
 			throw new InvalidDataException( $"Original BSP model {modelIndex} could not be loaded through its registered resource." );
 		return model;
 	}
 
-	internal static Model BuildGeometry( LambdaWarsMount host, LambdaWarsBsp bsp, LambdaWarsImportBudget budget, string resourcePath, int modelIndex )
+	internal static Model BuildGeometry( LambdaWarsMount host, LambdaWarsBsp bsp, LambdaWarsImportBudget budget, string resourcePath, int modelIndex, bool skyOnly = false )
 	{
+		var sky = modelIndex == 0 ? LambdaWarsSkybox.TryCreate( bsp ) : null;
 		budget.SetStage( $"Reading geometry for BSP model {modelIndex}" );
 		using var reader = bsp.Open();
 		var vertices = bsp.ReadLumpRecords<Vector3>( 3 );
@@ -183,6 +216,8 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 		for ( var faceIndex = firstFace; faceIndex < firstFace + faceCount; faceIndex++ )
 		{
+			if ( modelIndex == 0 && (sky?.IsSkyFace( faceIndex ) ?? false) != skyOnly )
+				continue;
 			if ( (faceIndex & 255) == 0 )
 				budget.Check();
 			reader.BaseStream.Position = bsp.Lumps[7].Offset + faceIndex * 56;
@@ -220,16 +255,18 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		foreach ( var pair in groups )
 		{
 			budget.Check();
-			var material = host.LoadContentMaterial( $"materials/{pair.Key}.vmt" );
+			var materialPath = $"materials/{pair.Key}.vmt";
+			var material = skyOnly ? host.LoadSkyContentMaterial( materialPath ) : host.LoadContentMaterial( materialPath );
 			var mesh = new Mesh( material );
 			mesh.CreateVertexBuffer( pair.Value.Vertices.Count, pair.Value.Vertices );
 			mesh.CreateIndexBuffer( pair.Value.Indices.Count, pair.Value.Indices );
 			builder.AddMesh( mesh );
 		}
 		budget.SetStage( $"Preparing collision for BSP model {modelIndex}" );
-		if ( collisionIndices.Count > 0 )
+		if ( !skyOnly && collisionIndices.Count > 0 )
 			builder.AddCollisionMesh( collisionVertices, collisionIndices );
-		AddBrushCollision( bsp, reader, builder, modelIndex, budget, textureInfos, textureData, textureNames );
+		if ( !skyOnly )
+			AddBrushCollision( bsp, reader, builder, modelIndex, budget, textureInfos, textureData, textureNames, sky );
 		budget.SetStage( $"Creating BSP model {modelIndex}" );
 		return builder.Create();
 	}
@@ -328,12 +365,15 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		return new MapVertex( point, normal, new Vector4( u.Normal, 1 ), new Vector2( (point.Dot( u ) + info.U.w) / Math.Max( data.Width, 1 ), (point.Dot( v ) + info.V.w) / Math.Max( data.Height, 1 ) ), new Vector4( 1, 1, 1, terrainBlend ) );
 	}
 
-	private void AddEntityProps( LambdaWarsBsp bsp )
+	private void AddEntityProps( LambdaWarsBsp bsp, LambdaWarsSkybox sky, bool skyOnly )
 	{
 		foreach ( var entity in bsp.Entities )
 		{
 			var classname = entity.GetValueOrDefault( "classname", "" );
 			if ( classname is not ("prop_physics" or "prop_physics_override" or "prop_dynamic" or "prop_dynamic_override") || !entity.TryGetValue( "model", out var modelName ) )
+				continue;
+			var position = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
+			if ( (sky?.IsSkyPoint( position ) ?? false) != skyOnly )
 				continue;
 
 			var model = Host.LoadContentModel( modelName );
@@ -342,12 +382,21 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				throw new InvalidDataException( $"Map prop could not be loaded: {modelName}" );
 
 			var prop = new GameObject( true, modelName );
-			prop.WorldPosition = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
+			prop.WorldPosition = position;
 			prop.WorldRotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) );
-			var renderer = prop.Components.Create<SkinnedModelRenderer>();
-			renderer.UseAnimGraph = false;
+			ModelRenderer renderer;
+			if ( skyOnly )
+			{
+				renderer = prop.Components.Create<ModelRenderer>();
+			}
+			else
+			{
+				var skinned = prop.Components.Create<SkinnedModelRenderer>();
+				skinned.UseAnimGraph = false;
+				renderer = skinned;
+			}
 			renderer.Model = model;
-			if ( entity.GetValueOrDefault( "solid", "6" ) != "0" )
+			if ( !skyOnly && entity.GetValueOrDefault( "solid", "6" ) != "0" )
 			{
 				var collider = prop.Components.Create<ModelCollider>();
 				collider.Model = model;
@@ -385,25 +434,29 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		var brightness = components.Length > 3 ? components[3] / 200f : 1;
 		return new Color( components[0] / 255f, components[1] / 255f, components[2] / 255f ) * brightness;
 	}
-	private void AddBrushEntities( LambdaWarsBsp bsp )
+	private void AddBrushEntities( LambdaWarsBsp bsp, LambdaWarsSkybox sky, bool skyOnly )
 	{
 		foreach ( var entity in bsp.Entities )
 		{
 			var classname = entity.GetValueOrDefault( "classname", "" );
 			if ( classname is not ("func_brush" or "func_illusionary" or "func_wall" or "func_door" or "func_door_rotating") || !entity.TryGetValue( "model", out var modelName ) || !modelName.StartsWith( '*' ) )
 				continue;
+			var position = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
+			var bounds = bsp.EntityBounds( entity );
+			if ( (sky?.IsSkyPoint( (bounds.Mins + bounds.Maxs) * 0.5f ) ?? false) != skyOnly )
+				continue;
 
 			var index = int.Parse( modelName[1..], System.Globalization.CultureInfo.InvariantCulture );
 			var model = LoadRegisteredGeometry( index );
 			var brush = new GameObject( true, entity.GetValueOrDefault( "targetname", classname ) );
-			brush.WorldPosition = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
+			brush.WorldPosition = position;
 			brush.WorldRotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) );
 			var renderer = brush.Components.Create<ModelRenderer>();
 			renderer.Model = model;
 			var disabled = classname == "func_brush" && entity.GetValueOrDefault( "StartDisabled", "0" ) != "0";
 			renderer.Enabled = !disabled;
 			var solidity = entity.GetValueOrDefault( "Solidity", "0" );
-			if ( classname != "func_illusionary" && (classname != "func_brush" || solidity != "1" && (!disabled || solidity == "2")) )
+			if ( !skyOnly && classname != "func_illusionary" && (classname != "func_brush" || solidity != "1" && (!disabled || solidity == "2")) )
 			{
 				var collider = brush.Components.Create<ModelCollider>();
 				collider.Model = model;
@@ -446,11 +499,13 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		}
 		return brushes;
 	}
-	private void AddStaticProps( LambdaWarsStaticPropMetadata metadata )
+	private void AddStaticProps( LambdaWarsStaticPropMetadata metadata, LambdaWarsSkybox sky, bool skyOnly )
 	{
 		var models = new Dictionary<string, Model>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var source in metadata.Props )
 		{
+			if ( (sky?.IsSkyProp( source, metadata ) ?? false) != skyOnly )
+				continue;
 			budget.Check();
 			if ( !models.TryGetValue( source.ModelPath, out var model ) )
 			{
@@ -466,7 +521,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			prop.WorldPosition = source.Position;
 			prop.WorldRotation = source.Rotation;
 			ModelRenderer renderer;
-			if ( model.BoneCount > 0 )
+			if ( model.BoneCount > 0 && !skyOnly )
 			{
 				var skinned = prop.Components.Create<SkinnedModelRenderer>();
 				skinned.UseAnimGraph = false;
@@ -483,7 +538,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				renderer.MaterialGroup = $"Skin {source.Skin}";
 			}
 
-			if ( source.Solid != 0 )
+			if ( !skyOnly && source.Solid != 0 )
 			{
 				var collider = prop.Components.Create<ModelCollider>();
 				collider.Model = model;
@@ -514,7 +569,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	}
 
 	/// <summary>Imports solid, visibly textured brush volumes while preserving their hidden closing and bevel planes.</summary>
-	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, bool npcClip = false, List<BBox> hullBounds = null )
+	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, LambdaWarsSkybox sky, bool npcClip = false, List<BBox> hullBounds = null )
 	{
 		var added = 0;
 		var planes = new (Vector3 Normal, float Distance)[bsp.Lumps[1].Length / 20];
@@ -526,6 +581,8 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 
 		foreach ( var brush in ModelBrushes( bsp, reader, modelIndex ) )
 		{
+			if ( modelIndex == 0 && (sky?.IsSkyBrush( brush ) ?? false) )
+				continue;
 			budget.Check();
 			reader.BaseStream.Position = bsp.Lumps[18].Offset + brush * 12;
 			var firstSide = reader.ReadInt32();
@@ -610,7 +667,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 internal sealed record LambdaWarsPreparedMap( LambdaWarsBsp Bsp, LambdaWarsStaticPropMetadata StaticProps, long DecodedUploadBytes );
 
 /// <summary>Rebuilds a registered BSP submodel after scene unload while sharing only live scene-import budgets.</summary>
-internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex ) : ResourceLoader<LambdaWarsMount>
+internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex, bool skyOnly = false ) : ResourceLoader<LambdaWarsMount>
 {
 	protected override object Load()
 	{
@@ -621,6 +678,6 @@ internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex 
 			budget.ReserveResources( prepared.DecodedUploadBytes );
 		if ( modelIndex < 0 || modelIndex >= prepared.Bsp.Lumps[14].Length / 48 )
 			throw new InvalidDataException( "The registered BSP model index is invalid." );
-		return LambdaWarsMapLoader.BuildGeometry( Host, prepared.Bsp, budget, Path, modelIndex );
+		return LambdaWarsMapLoader.BuildGeometry( Host, prepared.Bsp, budget, Path, modelIndex, skyOnly );
 	}
 }

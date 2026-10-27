@@ -19,6 +19,7 @@ internal sealed class LambdaWarsStaticPropMetadata
 	internal int Version { get; init; }
 	internal IReadOnlyList<string> Models { get; init; } = [];
 	internal IReadOnlyList<LambdaWarsStaticProp> Props { get; init; } = [];
+	internal IReadOnlyList<ushort> Leaves { get; init; } = [];
 	internal int LeafCount { get; init; }
 	internal int ModelCount => Models.Count;
 	internal int PropCount => Props.Count;
@@ -135,7 +136,9 @@ internal static class LambdaWarsStaticPropReader
 
 		var leafCount = ReadCount( reader, MaximumLeaves, "leaf" );
 		RequireRemaining( source, end, leafCount * 2L + 4 );
-		source.Position += leafCount * 2L;
+		var leaves = new ushort[leafCount];
+		for ( var index = 0; index < leaves.Length; index++ )
+			leaves[index] = reader.ReadUInt16();
 		var propCount = ReadCount( reader, MaximumProps, "prop" );
 		if ( end - source.Position != propCount * (long)StaticPropRecordSize )
 			throw new InvalidDataException( "The static-prop version 9 record length is invalid." );
@@ -168,7 +171,7 @@ internal static class LambdaWarsStaticPropReader
 			props[index] = new( modelIndex, models[modelIndex], position, new Angles( angles.x, angles.y, angles.z ), solid, skin, firstLeaf, propLeaves );
 		}
 
-		return new() { Version = 9, Models = models, Props = props, LeafCount = leafCount };
+		return new() { Version = 9, Models = models, Props = props, Leaves = leaves, LeafCount = leafCount };
 	}
 
 	private static int ReadCount( BinaryReader reader, int maximum, string name )

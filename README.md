@@ -81,3 +81,9 @@ Multiblend terrain reads the BSP's packed four-layer weights, alpha controls and
 Terrain uses the current renderer's lighting and specular response; original baked lightmaps and Source's global terrain-specular lighting are not reconstructed. Water uses a simplified shader (scrolling normal maps, scene refraction, depth fog and a Fresnel environment reflection); Source's planar reflection and refraction render targets, WaterLOD distance controls and cheap/expensive fallbacks are not reproduced. Successful map loading does not establish complete material or map I/O coverage.
 
 Terrain rendering was checked in the editor on Village, Slums, Forest, Forest Winter and Base4 on 2026-10-15. A subsequent 36-map regression sweep stopped after 20 attempts: 14 matches passed without terrain-material fallbacks, five were blocked by the existing RAM headroom checks, and the editor connection closed on Mine Winter. The cause of that exit and the remaining map checks are unresolved; this terrain change has not passed a complete 36-map regression sweep.
+
+## Original 3D skies
+
+The importer separates the BSP area containing `sky_camera` into a render-only sky scene, retaining its authored origin and scale. Sky geometry and props do not contribute gameplay collision. Water in that scene uses a cubemap and the authored water fog color instead of the main scene's refraction buffer. The renderer does not yet reproduce Source's sky fog or its distinction between `SURF_SKY` and `SURF_SKY2D`.
+
+On 2026-10-27, Village's distant trees and water were checked in the editor with the sky enabled and disabled. Forest loaded with its own sky scene. Canals loaded without a sky scene but remained blocked on its existing navigation readiness check. The BSP sky-area classifier also completed on 54 installed maps, including 31 with a sky camera.

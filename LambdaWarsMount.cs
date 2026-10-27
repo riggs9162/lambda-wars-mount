@@ -241,6 +241,8 @@ public sealed class LambdaWarsMount : BaseMount
 			activePackage = mapPath;
 			for ( var modelIndex = 0; modelIndex < modelCount.Value; modelIndex++ )
 				context.Add( ResourceType.Model, $"{mapPath}.scene.model_{modelIndex}", new LambdaWarsBspModelLoader( mapPath, modelIndex ) );
+			context.Add( ResourceType.Model, $"{mapPath}.scene.sky", new LambdaWarsBspModelLoader( mapPath, 0, true ) );
+			context.Add( ResourceType.Scene, $"{mapPath}.sky", new LambdaWarsMapLoader( mapPath, true ) );
 		}
 		base.Mount( context ).GetAwaiter().GetResult();
 		IsMounted = true;
