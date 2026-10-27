@@ -67,6 +67,8 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
         AddEntityProps( bsp );
         AddLighting( bsp );
         AddEntityMarkers( bsp );
+		budget.SetStage( "Preparing NPC clip volumes" );
+		AddNpcClip( bsp );
 		var navigation = world.Scene.NavMesh;
 		navigation.IsEnabled = true;
 		navigation.IncludeStaticBodies = true;
@@ -79,6 +81,21 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		navigation.AgentStepSize = 18;
 		navigation.AgentMaxSlope = 40;
 		navigation.ExcludedBodies.Add( "nav_exclude" );
+	}
+
+	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" so navigation and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
+	private void AddNpcClip( LambdaWarsBsp bsp )
+	{
+		using var reader = bsp.Open();
+		var builder = Model.Builder.WithName( $"{Path}.npcclip" );
+		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, npcClip: true ) == 0 )
+			return;
+
+		var clip = new GameObject( true, "npcclip" );
+		clip.Tags.Add( "npcclip" );
+		var collider = clip.Components.Create<ModelCollider>();
+		collider.Model = builder.Create();
+		collider.Static = true;
 	}
 
 	private Model LoadRegisteredGeometry( int modelIndex )
@@ -464,8 +481,9 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 	}
 
 	/// <summary>Imports solid, visibly textured brush volumes while preserving their hidden closing and bevel planes.</summary>
-	private static void AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames )
+	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, bool npcClip = false )
 	{
+		var added = 0;
 		var planes = new (Vector3 Normal, float Distance)[bsp.Lumps[1].Length / 20];
 		for ( var i = 0; i < planes.Length; i++ )
 		{
@@ -480,7 +498,8 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 			var firstSide = reader.ReadInt32();
 			var sideCount = reader.ReadInt32();
 			var contents = reader.ReadInt32();
-			if ( (contents & 0x1) == 0 || sideCount < 4 )
+			var matches = npcClip ? (contents & 0x20000) != 0 && (contents & 0x1) == 0 : (contents & 0x1) != 0;
+			if ( !matches || sideCount < 4 )
 				continue;
 			if ( sideCount > 1024 )
 				throw new InvalidDataException( "A collision brush exceeds the current import work budget." );
@@ -492,7 +511,7 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 				reader.BaseStream.Position = bsp.Lumps[19].Offset + (firstSide + side) * 8;
 				sides[side] = planes[reader.ReadUInt16()];
 				var infoIndex = reader.ReadInt16();
-				if ( infoIndex < 0 )
+				if ( npcClip || infoIndex < 0 )
 					continue;
 
 				var info = textureInfos[infoIndex];
@@ -501,13 +520,17 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 					hasVisibleSurface = true;
 			}
 
-			if ( !hasVisibleSurface )
+			if ( !npcClip && !hasVisibleSurface )
 				continue;
 
 			var hull = LambdaWarsBrushHull.Build( sides, budget.Check );
-			if ( hull.Count >= 4 )
-				builder.AddCollisionHull( hull );
+			if ( hull.Count < 4 )
+				continue;
+
+			builder.AddCollisionHull( hull );
+			added++;
 		}
+		return added;
 	}
 	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential )]
 	private struct MapVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Vector4 sourceColor )
