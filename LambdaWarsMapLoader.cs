@@ -75,12 +75,36 @@ internal sealed class LambdaWarsMapLoader( string filename ) : SceneLoader<Lambd
 		navigation.IncludeKeyframedBodies = false;
 		navigation.DeferGeneration = true;
 		navigation.CustomBounds = true;
-		navigation.Bounds = bsp.Bounds;
+		navigation.Bounds = NavigationBounds( bsp );
 		navigation.AgentHeight = 64;
 		navigation.AgentRadius = 16;
 		navigation.AgentStepSize = 18;
 		navigation.AgentMaxSlope = 40;
 		navigation.ExcludedBodies.Add( "nav_exclude" );
+	}
+
+	/// <summary>Reads the authored player regions that bound camera movement, building and navigation.</summary>
+	internal static BBox[] PlayableRegions( LambdaWarsBsp bsp ) => bsp.Entities
+		.Where( entity => entity.GetValueOrDefault( "classname", "" ) == "func_map_boundary" && entity.GetValueOrDefault( "StartDisabled", "0" ) != "1" )
+		.Select( entity =>
+		{
+			var bounds = bsp.EntityBounds( entity );
+			var bloat = LambdaWarsEntityNumbers.Read( entity.GetValueOrDefault( "bloat", "-32" ) );
+			return new BBox( bounds.Mins - Vector3.One * bloat, bounds.Maxs + Vector3.One * bloat );
+		} )
+		.Where( bounds => bounds.Size.x > 0 && bounds.Size.y > 0 && bounds.Size.z > 0 ).ToArray();
+
+	/// <summary>Limits navigation generation to the playable regions horizontally while keeping the map's full height range.</summary>
+	private static BBox NavigationBounds( LambdaWarsBsp bsp )
+	{
+		var regions = PlayableRegions( bsp );
+		if ( regions.Length == 0 )
+			return bsp.Bounds;
+
+		var world = bsp.Bounds;
+		return new BBox(
+			new Vector3( Math.Max( world.Mins.x, regions.Min( r => r.Mins.x ) ), Math.Max( world.Mins.y, regions.Min( r => r.Mins.y ) ), world.Mins.z ),
+			new Vector3( Math.Min( world.Maxs.x, regions.Max( r => r.Maxs.x ) ), Math.Min( world.Maxs.y, regions.Max( r => r.Maxs.y ) ), world.Maxs.z ) );
 	}
 
 	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" so navigation and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
