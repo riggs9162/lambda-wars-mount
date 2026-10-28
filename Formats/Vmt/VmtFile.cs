@@ -224,7 +224,7 @@ internal sealed partial class VmtFile
 		{
 			return resolveCondition?.Invoke( symbol ) ?? symbol.ToUpperInvariant() switch
 			{
-				"WIN32" or "WINDOWS" or "PC" or "DX90" => true,
+				"WIN32" or "WINDOWS" or "PC" or "DX90" or "DX90_20B" => true,
 				"WIN64" => Environment.Is64BitProcess,
 				"360" or "X360" or "XBOX" or "XBOX360" or "PS3" or "GAMECONSOLE" or "OSX" or "LINUX" or "POSIX"
 					or "WINXP" or "DX60" or "DX70" or "DX80" or "DX81" or "DX95" => false,
