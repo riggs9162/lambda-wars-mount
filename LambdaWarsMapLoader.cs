@@ -595,12 +595,16 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 				throw new InvalidDataException( "A collision brush exceeds the current import work budget." );
 
 			var sides = new (Vector3 Normal, float Distance)[sideCount];
+			var walkableRamp = false;
 			var hasVisibleSurface = false;
 			for ( var side = 0; side < sideCount; side++ )
 			{
 				reader.BaseStream.Position = bsp.Lumps[19].Offset + (firstSide + side) * 8;
 				sides[side] = planes[reader.ReadUInt16()];
 				var infoIndex = reader.ReadInt16();
+				reader.ReadInt16();
+				var bevel = reader.ReadByte() != 0;
+				walkableRamp |= !bevel && IsWalkableSlope( sides[side].Normal );
 				if ( npcClip || infoIndex < 0 )
 					continue;
 
@@ -618,11 +622,19 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 				continue;
 
 			builder.AddCollisionHull( hull );
-			hullBounds?.Add( BBox.FromPoints( hull ) );
+			if ( !walkableRamp )
+				hullBounds?.Add( BBox.FromPoints( hull ) );
 			added++;
 		}
 		return added;
 	}
+
+	/// <summary>
+	/// Detects an authored, non-bevel brush side sloped gently enough to walk on. NPC clip brushes with such a side are
+	/// ramps laid over stairs: units walk on them, so they keep their collision but must not carve a navigation hole.
+	/// </summary>
+	private static bool IsWalkableSlope( Vector3 normal ) => normal.z >= 0.7f && normal.z < 0.999f;
+
 	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential )]
 	private struct MapVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Vector4 sourceColor )
 	{
