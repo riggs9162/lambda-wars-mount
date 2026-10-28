@@ -46,8 +46,10 @@ internal sealed class LambdaWarsImportBudget : IDisposable
 
 		process.Refresh();
 		if ( process.WorkingSet64 > residentLimit )
-			throw new InvalidDataException( $"Original map import stopped after exceeding its {growthLimit / (1024 * 1024)} MB memory growth limit ({process.WorkingSet64 / (1024 * 1024)} MB used by the game). The map remains unavailable." );
+			throw new InvalidDataException( $"Original map import stopped during {Stage} after growing {GrowthMegabytes()} MB from {initialResident / (1024 * 1024)} MB, exceeding its {growthLimit / (1024 * 1024)} MB memory growth limit ({process.WorkingSet64 / (1024 * 1024)} MB used by the game). The map remains unavailable." );
 	}
+
+	private long GrowthMegabytes() => (process.WorkingSet64 - initialResident) / (1024 * 1024);
 
 	/// <summary>Reserves bounded staging, cache and native allocation headroom from validated texture payloads while retaining the system RAM reserve.</summary>
 	internal void ReserveResources( long decodedUploadBytes )
@@ -94,7 +96,8 @@ internal sealed class LambdaWarsImportBudget : IDisposable
 	internal void SetStage( string stage )
 	{
 		Stage = stage;
-		Log.Info( $"Original map import: {stage} ({elapsed.Elapsed.TotalSeconds:F2}s elapsed)" );
+		process.Refresh();
+		Log.Info( $"Original map import: {stage} ({elapsed.Elapsed.TotalSeconds:F2}s elapsed, {GrowthMegabytes()} MB memory growth)" );
 		Check();
 	}
 
