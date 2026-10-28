@@ -144,6 +144,8 @@ PS
 			result = lerp( refracted, reflected, saturate( fresnel * g_flSourceReflectAmount * 2 ) );
 		}
 		#endif
-		return DoAtmospherics( positionWs, i.vPositionSs.xy, float4( result, 1 ), false );
+		if ( g_bFogEnabled )
+			result = Fog::Apply( positionWs, i.vPositionSs.xy, result );
+		return float4( result, 1 );
 	}
 }

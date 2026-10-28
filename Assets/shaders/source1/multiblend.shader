@@ -158,7 +158,9 @@ PS
 			CalculateIndirectLighting( lighting, combiner );
 			float3 result = (lighting.vDiffuse + lighting.vIndirectDiffuse) * combiner.vDiffuseColor
 				+ lighting.vSpecular + lighting.vIndirectSpecular + combiner.vEmissive;
-			return DoAtmospherics( material.WorldPosition, material.ScreenPosition.xy, float4( result, 1 ) );
+			if ( g_bFogEnabled )
+				result = Fog::Apply( material.WorldPosition, material.ScreenPosition.xy, result );
+			return float4( result, 1 );
 		#endif
 	}
 }

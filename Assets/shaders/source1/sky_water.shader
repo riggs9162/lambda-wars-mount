@@ -95,6 +95,8 @@ PS
 			float3 reflected = g_tEnvCube.Sample( g_sEnvCube, reflect( -view, normalWs ) ).rgb * g_vSourceReflectTint;
 			result = lerp( result, reflected, fresnel );
 		#endif
-		return DoAtmospherics( positionWs, i.vPositionSs.xy, float4( result, 1 ), false );
+		if ( g_bFogEnabled )
+			result = Fog::Apply( positionWs, i.vPositionSs.xy, result );
+		return float4( result, 1 );
 	}
 }
