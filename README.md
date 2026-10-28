@@ -2,6 +2,22 @@
 
 Native Source 1 resource readers adapted from Facepunch's MIT-licensed `Sandbox.Mounting.Source1` implementation in [sbox-public](https://github.com/Facepunch/sbox-public). The accompanying license applies to the upstream readers and shaders. `LambdaWars*` files add installation discovery, map metadata and BSP scene reconstruction.
 
+This is an s&box engine mount: it reads models, materials, textures, sounds and maps directly from your own Steam copy of [Lambda Wars](https://store.steampowered.com/app/270370/Lambda_Wars/) at runtime. No original game files are included in this repository or its releases, and none are copied to disk.
+
+## Install
+
+1. Install Lambda Wars through Steam (app 270370).
+2. Close s&box and the s&box editor.
+3. Download `lambda-wars-mount-<version>.zip` from the [latest release](https://github.com/riggs9162/lambda-wars-mount/releases/latest).
+4. Extract it into your s&box installation's `mount` folder so you end up with `<sbox>/mount/lambda_wars/lambda_wars.dll` and `<sbox>/mount/lambda_wars/Assets/`. With a default Steam library this is `C:/Program Files (x86)/Steam/steamapps/common/sbox/mount/`.
+5. Start s&box. The mount is discovered on startup and appears as `lambda_wars`; its content is addressed as `mount://lambda_wars/<original path>`.
+
+The mount finds the Steam installation automatically. If Lambda Wars lives somewhere Steam does not report, set the `LAMBDA_WARS_GAME_PATH` environment variable to the installation folder before starting s&box.
+
+To update, close s&box and replace the `lambda_wars` folder with the one from the newer release. To uninstall, delete it.
+
+Each release is built against the s&box engine version named in its release notes. An s&box update can change engine APIs; if the mount stops loading after an update, use a newer release or build it yourself.
+
 Original game assets are read from the installed game and are never copied by this project. Settings provides a manual content path accepting either the installation root or its `lambdawars` directory. Applying stages a new file index before refreshing the mount in the menu or lobby; clearing the path restores automatic Steam discovery. The engine needs one restart when installing a new mount DLL, but content paths and map selection do not.
 
 Steam's registered installation is preferred by default. An explicitly saved manual path overrides discovery; `LAMBDA_WARS_GAME_PATH` remains a fallback when no valid installation is otherwise available. Manual configuration is stored locally in `%LOCALAPPDATA%/LambdaWarsSbox/content.json` and is never replicated to other players. Both loose installations with `.dx90.vtx` model companions and Steam VPKs with `.vtx` companions are supported; the original model and texture identifiers stay unchanged.
@@ -10,13 +26,17 @@ On Windows, automatic discovery also checks Steam's registry entries read-only, 
 
 The mount is a separately installed engine extension. Its direct file and registry access is not part of the sandboxed game assembly; game-side settings use `FileSystem.Data` and registered mount resources. The [API whitelist](https://sbox.game/dev/doc/code/code-basics/api-whitelist) blocks ordinary game code from unrestricted .NET file access. Editor validation does not establish platform distribution support. Keep the game whitelist enabled: a clean non-editor run with external content and a supported mount deployment remain release gates, and standalone-only mode must not be enabled automatically.
 
+## Build from source
+
+Requires the .NET 10 SDK and a local s&box installation. The project references the engine assemblies in `<sbox>/bin/managed`, located through the `FACEPUNCH_ENGINE` environment variable or an explicit `EnginePath`.
+
 Build the production mount project with .NET 10 against your local engine:
 
 ```powershell
-dotnet build Libraries/Source1/LambdaWars.Source1Mount.csproj -m:1 -nr:false -p:UseSharedCompilation=false "-p:EnginePath=<sbox installation>"
+dotnet build LambdaWars.Source1Mount.csproj -c Release -m:1 -nr:false -p:UseSharedCompilation=false "-p:EnginePath=<sbox installation>"
 ```
 
-With the editor and game closed, copy the resulting `LambdaWars.Source1Mount.dll` into `<sbox installation>/mount/lambda_wars/lambda_wars.dll`. The engine must discover the trusted mount on startup. The game does not bypass its code sandbox. Standard platform delivery is not established by local DLL installation.
+With the editor and game closed, copy the resulting `bin/Release/LambdaWars.Source1Mount.dll` to `<sbox installation>/mount/lambda_wars/lambda_wars.dll` and copy `Assets` to `<sbox installation>/mount/lambda_wars/Assets`. Release archives also contain compiled shaders; a source build relies on the engine compiling them. The engine must discover the trusted mount on startup. The game does not bypass its code sandbox. Standard platform delivery is not established by local DLL installation.
 
 ## Current import limits
 
