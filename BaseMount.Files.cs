@@ -22,6 +22,41 @@ public abstract partial class BaseMount
 		MatchCasing = MatchCasing.CaseInsensitive
 	};
 
+	private FileSystemInfo[] ReadContentDirectory( string directory )
+	{
+		try
+		{
+			return new DirectoryInfo( directory ).GetFileSystemInfos( "*", ContentFiles( false ) );
+		}
+		catch ( Exception e ) when ( e is IOException or UnauthorizedAccessException )
+		{
+			Log.Warning( $"{directory}: content directory was not indexed: {e.Message}" );
+			return [];
+		}
+	}
+
+	/// <summary>
+	/// Walks loose content one directory at a time, so an unreadable folder is skipped with a
+	/// warning instead of aborting the whole index.
+	/// </summary>
+	private IEnumerable<string> EnumerateContentFiles( string directory, bool recursive )
+	{
+		var pending = new Stack<string>();
+		pending.Push( directory );
+		while ( pending.TryPop( out var current ) )
+		{
+			foreach ( var entry in ReadContentDirectory( current ) )
+			{
+				if ( entry is DirectoryInfo )
+				{
+					if ( recursive ) pending.Push( entry.FullName );
+					continue;
+				}
+				yield return entry.FullName;
+			}
+		}
+	}
+
 	internal IEnumerable<ContentSource> ScanContent( string directory )
 	{
 		var root = Path.GetFullPath( directory );
@@ -75,10 +110,10 @@ public abstract partial class BaseMount
 		public readonly Dictionary<Material, SourceMaterialVariant> MaterialVariants = new( ReferenceEqualityComparer.Instance );
 		public Texture CameraRenderTarget;
 
-		public void Add( string path, VpkArchive package = null, string physicalPath = null )
+		public bool Add( string path, VpkArchive package = null, string physicalPath = null )
 		{
 			if ( !Files.TryAdd( path, new SourceFile( physicalPath ?? path, package ) ) )
-				return;
+				return false;
 
 			if ( path.StartsWith( "scripts/propdata/", StringComparison.OrdinalIgnoreCase )
 				&& path.EndsWith( ".txt", StringComparison.OrdinalIgnoreCase ) )
@@ -86,6 +121,7 @@ public abstract partial class BaseMount
 
 			if ( FileTypes.TryGetValue( Path.GetExtension( path ), out var resource ) )
 				Resources.Add( (path, resource) );
+			return true;
 		}
 
 		public IReadOnlyList<string> RemoveUnavailableModels()
@@ -125,7 +161,7 @@ public abstract partial class BaseMount
 		}
 	}
 
-	private static void IndexSources( FileIndex files, IEnumerable<ContentSource> sources )
+	private void IndexSources( FileIndex files, IEnumerable<ContentSource> sources )
 	{
 		foreach ( var source in sources )
 		{
@@ -138,12 +174,13 @@ public abstract partial class BaseMount
 				continue;
 			}
 
-			foreach ( var path in System.IO.Directory.EnumerateFiles( source.Path, "*", ContentFiles( source.Recursive ) ) )
+			foreach ( var path in EnumerateContentFiles( source.Path, source.Recursive ) )
 			{
 				if ( path.EndsWith( ".vpk", StringComparison.OrdinalIgnoreCase ) )
 					continue;
 				var virtualPath = Path.GetRelativePath( source.Path, path ).Replace( '\\', '/' );
-				files.Add( virtualPath, physicalPath: path );
+				if ( !files.Add( virtualPath, physicalPath: path ) )
+					Log.Trace( $"{path}: '{virtualPath}' was not indexed because an earlier content source takes precedence." );
 			}
 		}
 	}
