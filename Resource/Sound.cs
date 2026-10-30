@@ -61,6 +61,58 @@ internal static class SourceSoundEvents
 			new SoundFile.PcmOptions { Channels = 1, Rate = rate, Bits = 16 });
 	}
 
+	/// <summary>Reads a WAV's loop region in file order as Source does: "smpl" sets both ends, then "cue " moves the start. Returns null when the file has no loop.</summary>
+	private static (int Start, int End)? ReadLoop( byte[] wave )
+	{
+		if ( wave.Length < 12 || BitConverter.ToUInt32( wave, 0 ) != 0x46464952 || BitConverter.ToUInt32( wave, 8 ) != 0x45564157 )
+			return null;
+
+		var frameSize = 0;
+		long frames = 0;
+		int? start = null;
+		var end = 0;
+		for ( long position = 12; position + 8 <= wave.Length; )
+		{
+			var chunk = BitConverter.ToUInt32( wave, (int)position );
+			var size = BitConverter.ToUInt32( wave, (int)position + 4 );
+			var body = (int)position + 8;
+			if ( chunk == 0x20746d66 && size >= 16 && BitConverter.ToUInt16( wave, body ) == 1 )
+				frameSize = BitConverter.ToUInt16( wave, body + 2 ) * BitConverter.ToUInt16( wave, body + 14 ) / 8;
+			else if ( chunk == 0x61746164 && frameSize > 0 )
+				frames = size / frameSize;
+			else if ( chunk == 0x6c706d73 && size >= 60 && BitConverter.ToUInt32( wave, body + 28 ) > 0 )
+			{
+				start = BitConverter.ToInt32( wave, body + 44 );
+				end = BitConverter.ToInt32( wave, body + 48 ) + 1;
+			}
+			else if ( chunk == 0x20657563 && size >= 28 && BitConverter.ToUInt32( wave, body ) > 0 )
+				start = BitConverter.ToInt32( wave, body + 24 );
+			position = body + (long)size + (size & 1);
+		}
+
+		if ( start is null )
+			return null;
+		return (start.Value, end >= frames ? 0 : end);
+	}
+
+	/// <summary>Loads a wave for looping playback, honouring the "smpl" markers most original ambient loops use and s&amp;box's WAV reader skips.</summary>
+	private static SoundFile LoopingWave( BaseMount host, string wave )
+	{
+		var bytes = host.GetFileBytes( wave );
+		return ReadLoop( bytes ) is { } loop
+			? SoundFile.FromWav( $"mount://{host.Ident}/{wave}.loop.vsnd", bytes, new SoundFile.LoadOptions { LoopStart = loop.Start, LoopEnd = loop.End } )
+			: host.LoadContentSound( wave );
+	}
+
+	/// <summary>Creates one soundscape voice attenuated by its script sound level. Reverb stays off because room effects come from the soundscape's own DSP.</summary>
+	internal static SoundEvent CreateSoundscape( BaseMount host, string wave, int level, bool loop )
+	{
+		var sound = loop ? LoopingWave( host, wave ) : host.LoadContentSound( wave );
+		if ( sound is null || !sound.IsValid )
+			throw new InvalidOperationException( $"Soundscape wave '{wave}' could not be loaded." );
+		return Create( new SourceSoundDefinition( wave, wave, [wave], (1, 1), (1, 1), level, false, true ), [sound] );
+	}
+
 	internal static SoundEvent Create( BaseMount host, SourceSoundDefinition definition, bool distant = false )
 	{
 		var sounds = new List<SoundFile>();
@@ -72,6 +124,11 @@ internal static class SourceSoundEvents
 				throw new InvalidOperationException( $"{definition.SourcePath}: wave '{wave}' could not be loaded." );
 			sounds.Add( sound );
 		}
+		return Create( definition, sounds );
+	}
+
+	private static SoundEvent Create( SourceSoundDefinition definition, List<SoundFile> sounds )
+	{
 		var distance = definition.AudibleDistance();
 		var frames = definition.SampleFalloff( distance )
 			.Select( frame => new Curve.Frame( frame.Time, frame.Value ) { Mode = Curve.HandleMode.Linear } ).ToArray();
