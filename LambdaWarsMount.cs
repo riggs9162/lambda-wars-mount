@@ -239,6 +239,7 @@ public sealed class LambdaWarsMount : BaseMount
 		context.Add( ResourceType.GameResource, "map-selection.json", new LambdaWarsMapSelectionLoader() );
 		context.Add( ResourceType.GameResource, "progress.json", new LambdaWarsProgressLoader() );
 		context.Add( ResourceType.GameResource, "map-preparation.json", new LambdaWarsMapPreparationLoader() );
+		context.Add( ResourceType.GameResource, "release-import-memory.source", new LambdaWarsImportMemoryRelease() );
 		context.Add( ResourceType.GameResource, "sequence-catalog.source", new LambdaWarsSequenceCatalogLoader() );
 		context.Add( ResourceType.GameResource, "sequence-tracks.source", new LambdaWarsSequenceTrackLoader() );
 		var selectedMap = requestedMap ?? Environment.GetEnvironmentVariable( "LAMBDA_WARS_IMPORT_MAP" );
@@ -330,6 +331,9 @@ public sealed class LambdaWarsMount : BaseMount
 		preparedMaps.Add( filename, prepared );
 		return prepared;
 	}
+
+	/// <summary>Lets go of the complete BSP files kept for model loading. They are read again if another load needs them.</summary>
+	internal void ReleasePreparedMaps() => preparedMaps.Clear();
 
 	internal void PrepareMapPackage( string filename )
 	{
