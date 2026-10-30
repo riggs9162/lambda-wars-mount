@@ -57,9 +57,9 @@ internal sealed partial class SourceMaterialBuilder
 		var hdr = path.EndsWith( ".hdr.vtf", System.StringComparison.OrdinalIgnoreCase ) ? path : path[..^4] + ".hdr.vtf";
 		if ( Host.GetContentPath( hdr ) is not null )
 			path = hdr;
-		else if ( Host.GetContentPath( path ) is null && Host is GarrysModMount )
+		else if ( Host.GetContentPath( path ) is null )
 		{
-			Log.Trace( $"{FullPath}: environment texture '{path}' was not found; using GMod's default cubemap." );
+			Log.Trace( $"{FullPath}: environment texture '{path}' was not found; using the default cubemap." );
 			path = Host.GetContentPath( "materials/engine/defaultcubemap.hdr.vtf" ) is not null
 				? "materials/engine/defaultcubemap.hdr.vtf" : "materials/engine/defaultcubemap.vtf";
 		}

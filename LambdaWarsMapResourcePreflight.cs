@@ -266,6 +266,9 @@ internal static class LambdaWarsMapResourcePreflight
 						var hdr = texture[..^4] + ".hdr.vtf";
 						if ( mount.GetContentPath( hdr ) is not null )
 							texture = hdr;
+						else if ( mount.GetContentPath( texture ) is null )
+							texture = mount.GetContentPath( "materials/engine/defaultcubemap.hdr.vtf" ) is not null
+								? "materials/engine/defaultcubemap.hdr.vtf" : "materials/engine/defaultcubemap.vtf";
 					}
 					ReadTexture( texture );
 				}
