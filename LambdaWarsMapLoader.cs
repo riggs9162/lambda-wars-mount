@@ -11,6 +11,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 	private const int SolidContents = 0x1;
 	private const int GrateContents = 0xA;
 	private const int NpcClipContents = 0x20000;
+	private const float BlockerSliceSize = 20;
 
 	/// <summary>Sorts brushes into the collision they belong to by their Source contents.</summary>
 	private enum BrushLayer
@@ -175,13 +176,79 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		collider.Model = builder.Create();
 		collider.Static = true;
 
+		var blockers = new GameObject( true, "npcclip_nav" ) { Parent = clip };
 		foreach ( var bounds in hullBounds )
 		{
-			var blocker = new GameObject( true, "npcclip_nav" ) { Parent = clip };
-			var area = blocker.Components.Create<NavMeshArea>();
+			var area = blockers.Components.Create<NavMeshArea>();
 			area.IsBlocker = true;
 			area.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Box, Box = bounds };
 		}
+	}
+
+	/// <summary>
+	/// Covers a clip brush's footprint with boxes, because navigation areas cannot take its shape, so a diagonal brush
+	/// no longer seals the passage beside it. A rectangular brush stays one box. Others are sliced across their shorter
+	/// side with every slice inside the brush; the strips this leaves along a diagonal edge are narrower than the
+	/// navigation radius, which already keeps units away from that wall.
+	/// </summary>
+	private static IEnumerable<BBox> BlockerBoxes( IReadOnlyList<Vector3> hull )
+	{
+		var bounds = BBox.FromPoints( hull );
+		var slicedAlongX = bounds.Size.x <= bounds.Size.y;
+		var end = slicedAlongX ? bounds.Maxs.x : bounds.Maxs.y;
+		var start = slicedAlongX ? bounds.Mins.x : bounds.Mins.y;
+		BBox Box( float first, float last, float low, float high ) => slicedAlongX
+			? new BBox( new Vector3( first, low, bounds.Mins.z ), new Vector3( last, high, bounds.Maxs.z ) )
+			: new BBox( new Vector3( low, first, bounds.Mins.z ), new Vector3( high, last, bounds.Maxs.z ) );
+
+		(float First, float Last, float Low, float High)? run = null;
+		for ( var position = start; position < end; position += BlockerSliceSize )
+		{
+			var next = Math.Min( position + BlockerSliceSize, end );
+			var near = FootprintSpan( hull, slicedAlongX, position );
+			var far = FootprintSpan( hull, slicedAlongX, next );
+			var low = Math.Max( near.Low, far.Low );
+			var high = Math.Min( near.High, far.High );
+			if ( high <= low )
+				continue;
+
+			if ( run is { } open && Math.Abs( open.Low - low ) < 0.5f && Math.Abs( open.High - high ) < 0.5f && open.Last == position )
+			{
+				run = open with { Last = next };
+				continue;
+			}
+
+			if ( run is { } finished )
+				yield return Box( finished.First, finished.Last, finished.Low, finished.High );
+			run = (position, next, low, high);
+		}
+
+		if ( run is { } last )
+			yield return Box( last.First, last.Last, last.Low, last.High );
+	}
+
+	/// <summary>Finds where a line at one position enters and leaves the flat footprint of a convex hull.</summary>
+	private static (float Low, float High) FootprintSpan( IReadOnlyList<Vector3> hull, bool slicedAlongX, float position )
+	{
+		var low = float.MaxValue;
+		var high = float.MinValue;
+		for ( var i = 0; i < hull.Count; i++ )
+		{
+			for ( var j = i; j < hull.Count; j++ )
+			{
+				var from = slicedAlongX ? hull[i].x : hull[i].y;
+				var to = slicedAlongX ? hull[j].x : hull[j].y;
+				if ( (from - position) * (to - position) > 0 )
+					continue;
+
+				var start = slicedAlongX ? hull[i].y : hull[i].x;
+				var stop = slicedAlongX ? hull[j].y : hull[j].x;
+				var crossing = from == to ? start : start + (stop - start) * (position - from) / (to - from);
+				low = Math.Min( low, crossing );
+				high = Math.Max( high, crossing );
+			}
+		}
+		return (low, high);
 	}
 
 	/// <summary>Imports world grates and windows, including metal walkways, as static collision tagged "grate" that carries and stops units while sight and weapon traces skip it, so fences and railings do not block fire.</summary>
@@ -694,7 +761,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 
 			builder.AddCollisionHull( hull );
 			if ( !walkableRamp )
-				hullBounds?.Add( BBox.FromPoints( hull ) );
+				hullBounds?.AddRange( BlockerBoxes( hull ) );
 			added++;
 		}
 		return added;
