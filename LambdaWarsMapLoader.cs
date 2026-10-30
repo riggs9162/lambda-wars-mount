@@ -14,7 +14,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 	private const float BlockerSliceSize = 20;
 
 	/// <summary>Sorts brushes into the collision they belong to by their Source contents.</summary>
-	private enum BrushLayer
+	internal enum BrushLayer
 	{
 		Solid,
 		Grate,
@@ -164,17 +164,10 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" with matching navigation blockers so pathing and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
 	private void AddNpcClip( LambdaWarsBsp bsp, LambdaWarsSkybox sky )
 	{
-		using var reader = bsp.Open();
-		var builder = Model.Builder.WithName( $"{Path}.npcclip" );
 		var hullBounds = new List<BBox>();
-		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, sky, BrushLayer.NpcClip, hullBounds ) == 0 )
+		var clip = AddBrushLayer( bsp, sky, BrushLayer.NpcClip, "npcclip", "npcclip", hullBounds );
+		if ( clip is null )
 			return;
-
-		var clip = new GameObject( true, "npcclip" );
-		clip.Tags.Add( "npcclip" );
-		var collider = clip.Components.Create<ModelCollider>();
-		collider.Model = builder.Create();
-		collider.Static = true;
 
 		var blockers = new GameObject( true, "npcclip_nav" ) { Parent = clip };
 		foreach ( var bounds in hullBounds )
@@ -252,19 +245,36 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 	}
 
 	/// <summary>Imports world grates and windows, including metal walkways, as static collision tagged "grate" that carries and stops units while sight and weapon traces skip it, so fences and railings do not block fire.</summary>
-	private void AddGrates( LambdaWarsBsp bsp, LambdaWarsSkybox sky )
+	private void AddGrates( LambdaWarsBsp bsp, LambdaWarsSkybox sky ) => AddBrushLayer( bsp, sky, BrushLayer.Grate, "grates", "grate" );
+
+	/// <summary>Adds a world brush layer as tagged static collision, using a registered model because a replayed map reuses its saved scene and loads that model again by name.</summary>
+	private GameObject AddBrushLayer( LambdaWarsBsp bsp, LambdaWarsSkybox sky, BrushLayer layer, string name, string tag, List<BBox> hullBounds = null )
 	{
 		using var reader = bsp.Open();
 		var (textureInfos, textureData, textureNames) = ReadTextureTables( bsp, reader );
-		var builder = Model.Builder.WithName( $"{Path}.grates" );
-		if ( AddBrushCollision( bsp, reader, builder, 0, budget, textureInfos, textureData, textureNames, sky, BrushLayer.Grate ) == 0 )
-			return;
+		if ( AddBrushCollision( bsp, reader, null, 0, budget, textureInfos, textureData, textureNames, sky, layer, hullBounds ) == 0 )
+			return null;
 
-		var grates = new GameObject( true, "grates" );
-		grates.Tags.Add( "grate" );
-		var collider = grates.Components.Create<ModelCollider>();
-		collider.Model = builder.Create();
+		var model = Model.Load( $"mount://{Host.Ident}/{filename}.scene.{name}.vmdl" );
+		if ( model is null || model.IsError )
+			throw new InvalidDataException( $"The original {name} collision could not be loaded through its registered resource." );
+
+		var brushes = new GameObject( true, name );
+		brushes.Tags.Add( tag );
+		var collider = brushes.Components.Create<ModelCollider>();
+		collider.Model = model;
 		collider.Static = true;
+		return brushes;
+	}
+
+	/// <summary>Builds the collision-only model of one world brush layer for its registered resource.</summary>
+	internal static Model BuildBrushLayer( LambdaWarsBsp bsp, LambdaWarsImportBudget budget, string resourcePath, BrushLayer layer )
+	{
+		using var reader = bsp.Open();
+		var (textureInfos, textureData, textureNames) = ReadTextureTables( bsp, reader );
+		var builder = Model.Builder.WithName( resourcePath );
+		AddBrushCollision( bsp, reader, builder, 0, budget, textureInfos, textureData, textureNames, LambdaWarsSkybox.TryCreate( bsp ), layer );
+		return builder.Create();
 	}
 
 	/// <summary>Detects a brush entity built only from grates and windows, such as the walkways across Canals.</summary>
@@ -759,7 +769,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			if ( hull.Count < 4 )
 				continue;
 
-			builder.AddCollisionHull( hull );
+			builder?.AddCollisionHull( hull );
 			if ( !walkableRamp )
 				hullBounds?.AddRange( BlockerBoxes( hull ) );
 			added++;
@@ -825,7 +835,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 internal sealed record LambdaWarsPreparedMap( LambdaWarsBsp Bsp, LambdaWarsStaticPropMetadata StaticProps, long DecodedUploadBytes );
 
 /// <summary>Rebuilds a registered BSP submodel after scene unload while sharing only live scene-import budgets.</summary>
-internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex, bool skyOnly = false ) : ResourceLoader<LambdaWarsMount>
+internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex, bool skyOnly = false, LambdaWarsMapLoader.BrushLayer? brushLayer = null ) : ResourceLoader<LambdaWarsMount>
 {
 	protected override object Load()
 	{
@@ -836,6 +846,8 @@ internal sealed class LambdaWarsBspModelLoader( string filename, int modelIndex,
 			budget.ReserveResources( prepared.DecodedUploadBytes );
 		if ( modelIndex < 0 || modelIndex >= prepared.Bsp.Lumps[14].Length / 48 )
 			throw new InvalidDataException( "The registered BSP model index is invalid." );
-		return LambdaWarsMapLoader.BuildGeometry( Host, prepared.Bsp, budget, Path, modelIndex, skyOnly );
+		return brushLayer is { } layer
+			? LambdaWarsMapLoader.BuildBrushLayer( prepared.Bsp, budget, Path, layer )
+			: LambdaWarsMapLoader.BuildGeometry( Host, prepared.Bsp, budget, Path, modelIndex, skyOnly );
 	}
 }
