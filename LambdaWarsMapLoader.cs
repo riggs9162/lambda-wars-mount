@@ -786,10 +786,11 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 	};
 
 	/// <summary>
-	/// Detects an authored, non-bevel brush side sloped gently enough to walk on. NPC clip brushes with such a side are
-	/// ramps laid over stairs: units walk on them, so they keep their collision but must not carve a navigation hole.
+	/// Detects an authored, non-bevel brush side sloped gently enough to walk on, however slight the slope. NPC clip brushes
+	/// with such a side are ramps laid over stairs or terrain: units walk on them, so they keep their collision but must not
+	/// carve a navigation hole, because a box up to their highest point would swallow all the ground below it.
 	/// </summary>
-	private static bool IsWalkableSlope( Vector3 normal ) => normal.z >= 0.7f && normal.z < 0.999f;
+	private static bool IsWalkableSlope( Vector3 normal ) => normal.z >= 0.7f && normal.z < 1;
 
 	[System.Runtime.InteropServices.StructLayout( System.Runtime.InteropServices.LayoutKind.Sequential )]
 	private struct MapVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Vector4 sourceColor )
