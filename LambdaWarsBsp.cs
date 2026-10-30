@@ -239,6 +239,14 @@ internal sealed class LambdaWarsBsp
 
 	internal static Vector3 ReadVector( BinaryReader reader ) => new( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
 
+	/// <summary>Reports whether Source draws a surface. Tool textures stay hidden, except the unlit filler that maps such as Trapped use as real ground.</summary>
+	internal static bool IsDrawnSurface( string texture, int flags )
+	{
+		if ( (flags & 0x84) != 0 )
+			return false;
+		return !texture.StartsWith( "tools/", StringComparison.OrdinalIgnoreCase ) || texture.Equals( "tools/toolsnolight", StringComparison.OrdinalIgnoreCase );
+	}
+
 	internal static Vector3 Vector( string value )
 	{
 		var values = value.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );

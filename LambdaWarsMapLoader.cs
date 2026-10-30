@@ -332,7 +332,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			var info = textureInfos[infoIndex];
 			var data = textureData[info.Data];
 			var name = textureNames[data.Name];
-			if ( name.StartsWith( "tools/", StringComparison.OrdinalIgnoreCase ) || (info.Flags & 0x84) != 0 ) continue;
+			if ( !LambdaWarsBsp.IsDrawnSurface( name, info.Flags ) ) continue;
 
 			reader.BaseStream.Position = bsp.Lumps[1].Offset + plane * 20;
 			var normal = LambdaWarsBsp.ReadVector( reader );
@@ -758,7 +758,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 
 				var info = textureInfos[infoIndex];
 				var name = textureNames[textureData[info.Data].Name];
-				if ( !name.StartsWith( "tools/", StringComparison.OrdinalIgnoreCase ) && (info.Flags & 0x84) == 0 )
+				if ( LambdaWarsBsp.IsDrawnSurface( name, info.Flags ) )
 					hasVisibleSurface = true;
 			}
 

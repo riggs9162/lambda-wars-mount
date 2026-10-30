@@ -196,7 +196,7 @@ internal static class LambdaWarsMapResourcePreflight
 					if ( name < 0 || name >= names.Length )
 						throw new InvalidDataException( "A face references an invalid texture name." );
 
-					if ( names[name].StartsWith( "tools/", StringComparison.OrdinalIgnoreCase ) || (flags & 0x84) != 0 )
+					if ( !LambdaWarsBsp.IsDrawnSurface( names[name], flags ) )
 						continue;
 
 					Faces++;
