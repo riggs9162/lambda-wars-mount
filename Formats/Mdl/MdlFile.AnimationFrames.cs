@@ -11,7 +11,18 @@ internal sealed partial class MdlFile
 		public bool Looping => (Flags & 1) != 0;
 	}
 
+	/// <summary>The animation details a sequence catalog needs, read without decoding any frame.</summary>
+	internal readonly record struct AnimationSummary(AnimationDescriptor Descriptor, int IkRuleCount, bool Additive, AnimationMovement[] Movements);
+
 	internal int AnimationCount => _header.NumLocalAnims;
+
+	internal AnimationSummary ReadAnimationSummary(Stream stream, int index)
+	{
+		var descriptor = GetAnimationDescriptor(stream, index);
+		stream.Position = AnimationDescriptorOffset(index);
+		var animation = LumpReader<StudioAnimDesc>.ReadSingleFromStream(stream);
+		return new(descriptor, animation.NumIkRules, (animation.Flags & 4) != 0, ReadAnimationMovements(stream, index));
+	}
 
 	internal AnimationDescriptor GetAnimationDescriptor(Stream stream, int index)
 	{

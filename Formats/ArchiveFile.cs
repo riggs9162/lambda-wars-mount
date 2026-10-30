@@ -31,6 +31,8 @@ internal sealed class ArchiveFile( string path )
 
 	public static Stream OpenPreload( ReadOnlyMemory<byte> preload ) => new PreloadStream( preload );
 
+	public static Stream OpenPaged( PagedFile file ) => new PagedStream( file );
+
 	public static Stream OpenSlice( Stream stream, long offset, long length )
 	{
 		if ( !stream.CanRead || !stream.CanSeek )
@@ -115,6 +117,23 @@ internal sealed class ArchiveFile( string path )
 		{
 			ObjectDisposedException.ThrowIf( _disposed, this );
 			return _position >= _length ? -1 : preload.Span[(int)_position++];
+		}
+	}
+
+	private sealed class PagedStream( PagedFile file ) : EntryStream( file.Length )
+	{
+		public override int Read( Span<byte> buffer )
+		{
+			ObjectDisposedException.ThrowIf( _disposed, this );
+			var count = file.Read( _position, buffer );
+			_position += count;
+			return count;
+		}
+
+		public override int ReadByte()
+		{
+			Span<byte> value = stackalloc byte[1];
+			return Read( value ) == 0 ? -1 : value[0];
 		}
 	}
 

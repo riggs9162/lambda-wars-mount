@@ -1,41 +1,19 @@
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace Sandbox.Mounting.Source1;
 
 internal sealed partial class SourceModelBuilder
 {
-	/// <summary>Retains every original sequence and unique blend track without baking pose parameters or world-dependent IK into a fixed pose.</summary>
-	internal static (PreparedAnimationClip[] Clips, SourceSequenceCatalog Catalog) PrepareSequenceCatalog(MdlFile mdl, string modelPath, Func<string, Stream> openFile)
+	/// <summary>Describes every original sequence and unique blend track without decoding frames, baking pose parameters or fixing world-dependent IK into a pose.</summary>
+	internal static (SourceSequenceCatalog Catalog, SourceTrackSource[] Sources) PrepareSequenceCatalog(MdlFile mdl, string modelPath, Func<string, Stream> openFile)
 	{
-		var sourceFiles = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-		var originalOpen = openFile;
-		long sourceBytes = 0;
-		openFile = path =>
-		{
-			if (!sourceFiles.TryGetValue(path, out var bytes))
-			{
-				using var stream = originalOpen(path);
-				if (stream.Length > 128L * 1024 * 1024 - sourceBytes)
-					throw new NotSupportedException("Animation source files exceed the 128 MiB per-model input budget");
-				bytes = new byte[checked((int)stream.Length)];
-				stream.ReadExactly(bytes);
-				sourceFiles.Add(path, bytes);
-				sourceBytes += bytes.Length;
-			}
-
-			return new MemoryStream(bytes, false);
-		};
-
-		const long maximumPoseBytes = 256L * 1024 * 1024;
-		var clips = new List<PreparedAnimationClip>();
+		var sources = new List<SourceTrackSource>();
 		var entries = new List<SourceSequenceEntry>();
 		var trackData = new List<SourceSequenceTrack>();
 		var tracks = new Dictionary<(string Path, int Index), string>();
 		var failures = new Dictionary<(string Path, int Index), string>();
-		var animationNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		long allocated = 0;
+		var origins = new Dictionary<string, MdlFile.IncludedSequence>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var included in mdl.ReadIncludedSequences(modelPath, openFile))
 		{
@@ -111,11 +89,11 @@ internal sealed partial class SourceModelBuilder
 					if (failures.TryGetValue(key, out var failure))
 						throw new NotSupportedException(failure);
 					using var stream = openFile(included.ModelPath);
-					var descriptor = included.Model.GetAnimationDescriptor(stream, key.Item2);
-					var first = mdl.ReadIncludedRawFrame(included, blend, 0, openFile);
-					if (first.IkRuleCount != 0)
+					var summary = included.Model.ReadAnimationSummary(stream, key.Item2);
+					var descriptor = summary.Descriptor;
+					if (summary.IkRuleCount != 0)
 						pending.Add("Source IK targets and latch state");
-					if (first.Movements.Length != 0)
+					if (summary.Movements.Length != 0)
 						pending.Add("Root motion available separately");
 					if (tracks.TryGetValue(key, out var existing))
 					{
@@ -125,30 +103,18 @@ internal sealed partial class SourceModelBuilder
 
 					try
 					{
-						var bytes = checked((long)descriptor.FrameCount * mdl.BoneCount * Marshal.SizeOf<Transform>());
-						if (bytes > maximumPoseBytes - allocated)
-							throw new NotSupportedException("Original animation channels exceed the 256 MiB per-model pose budget");
-						var frames = new Transform[descriptor.FrameCount][];
-						for (var frame = 0; frame < frames.Length; frame++)
-						{
-							var raw = frame == 0 ? first : mdl.ReadIncludedRawFrame(included, blend, frame, openFile);
-							var cycle = frames.Length == 1 ? 0 : (float)frame / (frames.Length - 1);
-							frames[frame] = raw.HierarchyCount == 0 ? raw.Pose
-								: mdl.EvaluateIncludedHierarchy(included, descriptor.Index, frame, cycle, raw.Pose, openFile);
-							if (frames[frame].Length != mdl.BoneCount || frames[frame].Any(transform => !transform.IsValid))
-								throw new InvalidDataException("Invalid original animation pose");
-						}
-
 						var name = $"__source_track_{tracks.Count}";
-						clips.Add(new(name, sequence.Activity, descriptor.Fps, descriptor.Looping, first.Additive, false, frames));
 						tracks.Add(key, name);
+						if (!origins.TryGetValue(included.ModelPath, out var origin))
+							origins.Add(included.ModelPath, origin = included with { Sequence = null });
+						sources.Add(new(origin, key.Item2, descriptor.FrameCount));
 						var metadata = new SourceSequenceTrack
 						{
 							Name = name,
 							FrameCount = descriptor.FrameCount,
 							FramesPerSecond = descriptor.Fps,
 							Flags = descriptor.Flags,
-							MovementDistance = first.Movements.Length == 0 ? 0 : first.Movements[^1].Position.Length
+							MovementDistance = summary.Movements.Length == 0 ? 0 : summary.Movements[^1].Position.Length
 						};
 						try
 						{
@@ -160,7 +126,6 @@ internal sealed partial class SourceModelBuilder
 						}
 						trackData.Add(metadata);
 						names.Add(name);
-						allocated += bytes;
 					}
 					catch (Exception exception) when (exception is IOException or InvalidDataException or NotSupportedException)
 					{
@@ -176,21 +141,16 @@ internal sealed partial class SourceModelBuilder
 
 			entry.Tracks = names.ToArray();
 			entry.PendingOperations = pending.ToArray();
-			if (names.Count == 1 && sequence.AnimationIndices.Length == 1 && animationNames.Add(sequence.Name))
-			{
-				var track = clips.First(clip => clip.Name == names[0]);
-				entry.AnimationName = sequence.Name;
-				clips.Add(track with { Name = sequence.Name, Activity = sequence.Activity, Looping = sequence.Looping, Delta = (sequence.Flags & 4) != 0 });
-			}
 		}
 
-		return (clips.ToArray(), new SourceSequenceCatalog
+		return (new SourceSequenceCatalog
 		{
+			ModelPath = modelPath,
 			Sequences = entries.ToArray(),
 			Tracks = trackData.ToArray(),
 			BoneNames = Enumerable.Range(0, mdl.BoneCount).Select(mdl.GetBoneName).ToArray(),
 			BoneParents = mdl.Bones.Select(bone => bone.Parent).ToArray(),
 			BindPose = mdl.Bones.Select(bone => new Transform(bone.Position, bone.Quaternion)).ToArray()
-		});
+		}, sources.ToArray());
 	}
 }

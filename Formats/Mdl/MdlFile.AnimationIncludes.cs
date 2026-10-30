@@ -58,13 +58,19 @@ internal sealed partial class MdlFile
 			throw new ArgumentOutOfRangeException(nameof(blendIndex));
 		}
 
-		using var stream = openFile(sequence.ModelPath);
-		var raw = sequence.Model.ReadRawAnimationFrame(stream, sequence.Sequence.AnimationIndices[blendIndex], frameIndex, openFile);
+		return ReadIncludedAnimationFrame(sequence, sequence.Sequence.AnimationIndices[blendIndex], frameIndex, openFile);
+	}
+
+	/// <summary>Reads one frame of an animation in an included model, without needing the sequence that referenced it.</summary>
+	internal RawAnimationFrame ReadIncludedAnimationFrame(IncludedSequence source, int animationIndex, int frameIndex, Func<string, Stream> openFile)
+	{
+		using var stream = openFile(source.ModelPath);
+		var raw = source.Model.ReadRawAnimationFrame(stream, animationIndex, frameIndex, openFile);
 		var result = Bones.Select(bone => raw.Additive ? new Transform(Vector3.Zero, Rotation.Identity) : new Transform(bone.Position, bone.Quaternion)).ToArray();
 
 		for (var bone = 0; bone < raw.Pose.Length; bone++)
 		{
-			var target = sequence.RootBoneIndices[bone];
+			var target = source.RootBoneIndices[bone];
 			if (target >= 0)
 			{
 				result[target] = raw.Pose[bone];

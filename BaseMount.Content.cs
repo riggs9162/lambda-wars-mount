@@ -87,6 +87,41 @@ public abstract partial class BaseMount
 		}
 	}
 
+	/// <summary>Describes a model's original sequences as JSON and readies its tracks for decoding.</summary>
+	internal string ReadSequenceCatalog( string path )
+	{
+		path = path.Replace( '\\', '/' );
+		var (catalog, decoder) = PrepareSequences( path );
+		lock ( indexLock )
+			index.SequenceTracks[path] = decoder;
+		return Json.Serialize( catalog );
+	}
+
+	/// <summary>Decodes one track of a model as frame-by-bone transforms in the root model's bone order.</summary>
+	internal Transform[] ReadSequenceTrack( string path, int track )
+	{
+		path = path.Replace( '\\', '/' );
+		SourceTrackDecoder decoder;
+		lock ( indexLock )
+			index.SequenceTracks.TryGetValue( path, out decoder );
+		if ( decoder is null )
+		{
+			decoder = PrepareSequences( path ).Decoder;
+			lock ( indexLock )
+				index.SequenceTracks[path] = decoder;
+		}
+		return decoder.Decode( track, OpenContentFile );
+	}
+
+	private (SourceSequenceCatalog Catalog, SourceTrackDecoder Decoder) PrepareSequences( string path )
+	{
+		using var stream = OpenContentFile( path );
+		using var files = new PagedFiles( OpenContentFile );
+		var mdl = new MdlFile( stream );
+		var (catalog, sources) = SourceModelBuilder.PrepareSequenceCatalog( mdl, path, files.Open );
+		return (catalog, new SourceTrackDecoder( mdl, sources ));
+	}
+
 	internal SourceTexture GetSourceTexture( string path )
 	{
 		path = path.Replace( '\\', '/' );

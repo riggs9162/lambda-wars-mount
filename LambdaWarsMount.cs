@@ -239,6 +239,8 @@ public sealed class LambdaWarsMount : BaseMount
 		context.Add( ResourceType.GameResource, "map-selection.json", new LambdaWarsMapSelectionLoader() );
 		context.Add( ResourceType.GameResource, "progress.json", new LambdaWarsProgressLoader() );
 		context.Add( ResourceType.GameResource, "map-preparation.json", new LambdaWarsMapPreparationLoader() );
+		context.Add( ResourceType.GameResource, "sequence-catalog.source", new LambdaWarsSequenceCatalogLoader() );
+		context.Add( ResourceType.GameResource, "sequence-tracks.source", new LambdaWarsSequenceTrackLoader() );
 		var selectedMap = requestedMap ?? Environment.GetEnvironmentVariable( "LAMBDA_WARS_IMPORT_MAP" );
 		var mapPath = $"maps/{selectedMap}.bsp";
 		if ( MapsEnabled && IndexedContentFiles().Contains( mapPath, StringComparer.OrdinalIgnoreCase ) )
@@ -351,6 +353,18 @@ internal sealed class LambdaWarsImageLoader( string filename ) : ResourceLoader<
 internal sealed class LambdaWarsCatalogLoader( string json ) : ResourceLoader<LambdaWarsMount>
 {
 	protected override object Load() => json;
+}
+
+/// <summary>Lets the sandboxed game read a model's sequence catalog when it first animates that model.</summary>
+internal sealed class LambdaWarsSequenceCatalogLoader : ResourceLoader<LambdaWarsMount>
+{
+	protected override object Load() => (Func<string, string>)Host.ReadSequenceCatalog;
+}
+
+/// <summary>Lets the sandboxed game decode an animation track when it first plays that track.</summary>
+internal sealed class LambdaWarsSequenceTrackLoader : ResourceLoader<LambdaWarsMount>
+{
+	protected override object Load() => (Func<string, int, Transform[]>)Host.ReadSequenceTrack;
 }
 
 internal sealed class LambdaWarsProgressLoader : ResourceLoader<LambdaWarsMount>

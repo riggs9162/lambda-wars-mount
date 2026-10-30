@@ -2,11 +2,12 @@ using Sandbox.ModelEditor;
 
 namespace Sandbox.Mounting.Source1;
 
-/// <summary>Original sequence catalog; tracks contain parent-local channels and require the listed Source operations during unit playback.</summary>
+/// <summary>Original sequence catalog; tracks contain parent-local channels and require the listed Source operations during unit playback. A model only stores its path here: the game reads the full catalog and each track from the mount when it first needs them.</summary>
 [GameData("lambda_wars_source_sequences")]
 public sealed class SourceSequenceCatalog
 {
-	public int SchemaVersion { get; set; } = 2;
+	public int SchemaVersion { get; set; } = 3;
+	public string ModelPath { get; set; } = "";
 	public string[] BoneNames { get; set; } = [];
 	public int[] BoneParents { get; set; } = [];
 	public Transform[] BindPose { get; set; } = [];
@@ -17,7 +18,6 @@ public sealed class SourceSequenceCatalog
 public sealed class SourceSequenceEntry
 {
 	public string Name { get; set; } = "";
-	public string AnimationName { get; set; } = "";
 	public string SourceModelPath { get; set; } = "";
 	public int SourceIndex { get; set; }
 	public string Activity { get; set; } = "";

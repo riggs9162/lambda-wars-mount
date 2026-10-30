@@ -54,11 +54,10 @@ internal sealed partial class MdlFile
 		using var stream = openFile(included.ModelPath);
 		var index = included.Sequence.AnimationIndices[blend];
 		var descriptor = included.Model.GetAnimationDescriptor(stream, index);
-		var raw = included.Model.ReadRawAnimationFrame(stream, index, 0, openFile);
 		var offset = included.Model.AnimationDescriptorOffset(index);
 		stream.Position = offset;
 		var animation = LumpReader<StudioAnimDesc>.ReadSingleFromStream(stream);
-		if (raw.IkRuleCount == 0 || animation.IkRuleIndex == 0 && animation.AnimBlockIkRuleIndex == 0)
+		if (animation.NumIkRules == 0 || animation.IkRuleIndex == 0 && animation.AnimBlockIkRuleIndex == 0)
 			return null;
 
 		var result = new SourceAnimationManifest
@@ -71,8 +70,6 @@ internal sealed partial class MdlFile
 			AnimationFlags = descriptor.Flags,
 			FrameCount = descriptor.FrameCount,
 			FramesPerSecond = descriptor.Fps,
-			BoneNames = Enumerable.Range(0, BoneCount).Select(GetBoneName).ToArray(),
-			BoneParents = Bones.Select(bone => bone.Parent).ToArray(),
 			SourceToRootBones = included.RootBoneIndices
 		};
 		included.Model.ExportLosslessIk(stream, index, included.RootBoneIndices, openFile, result);
