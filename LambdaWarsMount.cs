@@ -162,12 +162,15 @@ public sealed class LambdaWarsMount : BaseMount
 			throw new InvalidDataException( $"Original map '{mapId}' has no info_start_wars positions." );
 	}
 
-	/// <summary>Selects the entities the game reads from the catalog; every map exposes its color correction and the logic that scripts it, and Overrun maps also expose their wave points and door logic.</summary>
+	/// <summary>Selects the entities the game reads from the catalog; every map exposes its color correction, the logic that scripts it and the buildings, units and no-build zones it places, and Overrun maps also expose their wave points and counters.</summary>
 	private static bool IsCatalogEntity( string mapId, string classname ) => classname is "control_point" or "trigger_capture_area" or "scrap_marker"
-		or "scrap_marker_small" or "func_nav_blocker" or "unit_maker" or "wars_population_listener"
+		or "scrap_marker_small" or "func_nav_blocker" or "wars_population_listener"
 		or "color_correction" or "color_correction_volume" or "fog_volume" or "logic_auto" or "logic_timer" or "logic_case" or "logic_relay"
+		or "func_door" or "func_movelinear" or "trigger_nobuildings" or "func_brush_garrisonable"
+		or "comb_mountableturret" or "rebels_mountableturret" or "floor_turret"
+		|| classname.StartsWith( "build_", StringComparison.Ordinal ) || classname.StartsWith( "unit_", StringComparison.Ordinal )
 		|| mapId.StartsWith( "or_", StringComparison.OrdinalIgnoreCase ) && classname is "overrun_manager" or "overrun_wave_spawnpoint"
-			or "overrun_headcrabcannister_spawnpoint" or "math_counter" or "func_door";
+			or "overrun_headcrabcannister_spawnpoint" or "math_counter";
 
 	private List<(string Path, object Descriptor, string Error)> ReadMapCatalog( FileIndex files )
 	{
