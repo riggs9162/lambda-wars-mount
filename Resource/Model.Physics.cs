@@ -16,8 +16,6 @@ internal sealed partial class SourceModelBuilder
 
 	private static PhysicsPlan PreparePhysics( PhyFile phy, MdlFile mdl, Transform[] boneTransforms, string[] boneNames )
 	{
-		if ( phy.Checksum != mdl.Checksum )
-			throw new InvalidDataException( $"{phy.SourceName}: PHY/MDL checksum mismatch." );
 		if ( boneTransforms.Length != mdl.Bones.Length || boneNames.Length != mdl.Bones.Length )
 			throw new ArgumentException( "Physics bind arrays must match the MDL skeleton." );
 		var articulated = phy.Solids.Count > 1 || phy.Constraints.Count > 0;

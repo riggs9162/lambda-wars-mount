@@ -48,6 +48,10 @@ internal sealed partial class PhyFile
 	private int rangeStart;
 	private int rangeEnd;
 
+	/// <summary>
+	/// Reads a PHY file. Source never compares these checksums and the original game reuses jointed ragdolls
+	/// across recompiled MDLs, binding their solids by bone name, so only rigid collision must match its MDL.
+	/// </summary>
 	public PhyFile( Stream stream, string sourceName, int expectedChecksum )
 	{
 		ArgumentNullException.ThrowIfNull( stream );
@@ -74,9 +78,9 @@ internal sealed partial class PhyFile
 		if ( Int( 4 ) != 0 )
 			throw new NotSupportedException( $"{SourceName}: unsupported PHY file ID {Int( 4 )}." );
 		Checksum = Int( 12 );
-		if ( Checksum != expectedChecksum )
-			throw Error( $"checksum {Checksum:X8} does not match MDL {expectedChecksum:X8}." );
 		var count = Int( 8 );
+		if ( count < 2 && Checksum != expectedChecksum )
+			throw Error( $"checksum {Checksum:X8} does not match MDL {expectedChecksum:X8}." );
 		if ( count < 0 || count > ushort.MaxValue || count > (data.Length - headerSize) / 52 )
 			throw Error( "invalid solid count." );
 
