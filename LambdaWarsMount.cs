@@ -274,6 +274,8 @@ public sealed class LambdaWarsMount : BaseMount
 		var files = IndexedContentFiles();
 		foreach ( var filename in files.Where( path => path.EndsWith( ".mdl", StringComparison.OrdinalIgnoreCase ) ) )
 			context.Add( ResourceType.GameResource, filename + ".content.json", new LambdaWarsModelInfoLoader( filename ) );
+		foreach ( var filename in files.Where( path => path.EndsWith( ".raw", StringComparison.OrdinalIgnoreCase ) ) )
+			context.Add( ResourceType.Texture, filename, new LambdaWarsColorLookupLoader( filename ) );
 		var companion = "models/structures/resistance/billet.dx90.vtx";
 		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new
 		{
