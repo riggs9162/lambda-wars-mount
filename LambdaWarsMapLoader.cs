@@ -512,7 +512,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			if ( model is null || model.IsError )
 				throw new InvalidDataException( $"Map prop could not be loaded: {modelName}" );
 
-			var prop = new GameObject( true, modelName );
+			var prop = new GameObject( true, entity.GetValueOrDefault( "targetname" ) is { Length: > 0 } targetName ? targetName : modelName );
 			prop.WorldPosition = position;
 			prop.WorldRotation = LambdaWarsBsp.Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) );
 			ModelRenderer renderer;
