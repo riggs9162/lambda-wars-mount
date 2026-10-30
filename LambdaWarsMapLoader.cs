@@ -471,7 +471,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		}
 	}
 
-	private static HashSet<int> ModelBrushes( LambdaWarsBsp bsp, BinaryReader reader, int modelIndex )
+	internal static HashSet<int> ModelBrushes( LambdaWarsBsp bsp, BinaryReader reader, int modelIndex )
 	{
 		reader.BaseStream.Position = bsp.Lumps[14].Offset + modelIndex * 48 + 36;
 		var pending = new Stack<int>();

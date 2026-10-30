@@ -201,6 +201,9 @@ public sealed class LambdaWarsMount : BaseMount
 					Starts = bsp.Starts.Select( start => new { start.OwnerNumber, start.GroupName, start.Position, start.Rotation } ).ToArray(),
 					NavigationLinks = id.StartsWith( "or_", StringComparison.OrdinalIgnoreCase )
 						? bsp.OffMeshLinks().Select( link => new { link.Start, link.End, link.OneWay } ).ToArray() : [],
+					Soundscapes = LambdaWarsMapSoundscapes.Entities( bsp ),
+					SoundscapeTriggers = LambdaWarsMapSoundscapes.Triggers( bsp ),
+					BoundaryBrushes = LambdaWarsMapSoundscapes.BoundaryBrushes( bsp ),
 					Entities = bsp.Entities.Where( entity => IsCatalogEntity( id, entity.GetValueOrDefault( "classname", "" ) ) )
 						.Select( entity => new
 						{
@@ -280,7 +283,7 @@ public sealed class LambdaWarsMount : BaseMount
 		var companion = "models/structures/resistance/billet.dx90.vtx";
 		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new
 		{
-			Version = 4,
+			Version = 5,
 			ContentRevision,
 			ActiveMapId,
 			SupportsLiveReload = true,

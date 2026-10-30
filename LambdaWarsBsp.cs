@@ -141,7 +141,7 @@ internal sealed class LambdaWarsBsp
 			var length = BitConverter.ToInt32( header, position + 4 );
 			if ( offset < 0 || length < 0 || (long)offset + length > source.Length )
 				throw new InvalidDataException( $"BSP lump {index} is outside the file." );
-			if ( index is 0 or 14 )
+			if ( index is 0 or 1 or 5 or 10 or 14 or 17 or 18 or 19 )
 			{
 				if ( length > 8 * 1024 * 1024 )
 					throw new InvalidDataException( "Map metadata exceeds the current import budget." );
