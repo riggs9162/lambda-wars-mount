@@ -15,9 +15,8 @@ internal sealed partial class TextureLoader
 
 		var mipCount = vtf.GetTextureMipmapCount();
 		var isCube = vtf.FaceCount > 1;
-		var compressed = sourceFormat is VtfFormat.DXT1 or VtfFormat.DXT1_ONEBITALPHA
-			or VtfFormat.DXT3 or VtfFormat.DXT5;
-		var decompress = compressed;
+		var keepCompressed = StaysCompressed( sourceFormat, width, height, vtf.FaceCount );
+		var decompress = IsBlockCompressed( sourceFormat ) && !keepCompressed;
 		if ( decompress )
 		{
 			format = ImageFormat.RGBA8888;
@@ -27,7 +26,12 @@ internal sealed partial class TextureLoader
 		var faceCount = isCube ? 6 : 1;
 		var imageCount = faceCount * (frame.HasValue ? 1 : vtf.FrameCount);
 		if ( !needsConversion && vtf.GetTexturePixelData( mipCount, faceCount ) is { } pixels )
-			return (format, pixels, mipCount);
+		{
+			if ( !keepCompressed )
+				return (format, pixels, mipCount);
+			var (whole, wholeMips) = WithoutPartialBlocks( pixels, sourceFormat, width, height, imageCount, mipCount );
+			return (format, whole, wholeMips);
+		}
 
 		var convertedPixelSize = format == ImageFormat.RGBA32323232F ? 16 : 4;
 		var totalSize = 0;
@@ -62,6 +66,26 @@ internal sealed partial class TextureLoader
 		}
 		return (format, data, mipCount);
 	}
+
+	/// <summary>Drops the smallest mips of a compressed chain, which come first and are narrower than one block. Sampling clamps to the last whole-block mip.</summary>
+	private static (byte[] Pixels, int MipCount) WithoutPartialBlocks( byte[] pixels, VtfFormat format, int width, int height, int imageCount, int mipCount )
+	{
+		var kept = mipCount;
+		var skipped = 0;
+		while ( kept > 1 && (Math.Max( 1, width >> (kept - 1) ) < 4 || Math.Max( 1, height >> (kept - 1) ) < 4) )
+		{
+			kept--;
+			skipped = checked(skipped + VtfFile.GetImageDataSize( Math.Max( 1, width >> kept ), Math.Max( 1, height >> kept ), 1, 1, format ) * imageCount);
+		}
+		return (skipped == 0 ? pixels : pixels[skipped..], kept);
+	}
+
+	internal static bool IsBlockCompressed( VtfFormat format ) => format is VtfFormat.DXT1 or VtfFormat.DXT1_ONEBITALPHA
+		or VtfFormat.DXT3 or VtfFormat.DXT5;
+
+	/// <summary>DXT1 and DXT5 originals upload directly as one whole mip chain, using a quarter to an eighth of the memory of RGBA. Cubemaps, sizes that are not whole blocks and the rarer DXT formats are expanded first.</summary>
+	internal static bool StaysCompressed( VtfFormat format, int width, int height, int faces ) =>
+		format is VtfFormat.DXT1 or VtfFormat.DXT5 && faces == 1 && width % 4 == 0 && height % 4 == 0;
 
 	internal static (ImageFormat Format, bool NeedsConversion) GetImageFormat( VtfFormat format ) => format switch
 	{

@@ -81,10 +81,16 @@ internal static class LambdaWarsMapResourcePreflight
 			_ => 4
 		};
 		long pixels = 0;
+		long blocks = 0;
 		for ( var mip = 0; mip < mips; mip++ )
+		{
 			pixels = checked(pixels + (long)Math.Max( 1, header.Width >> mip ) * Math.Max( 1, header.Height >> mip));
+			blocks = checked(blocks + (long)((Math.Max( 1, header.Width >> mip ) + 3) / 4) * ((Math.Max( 1, header.Height >> mip ) + 3) / 4));
+		}
 
-		return new( Normalize( path ), header.Width, header.Height, frames, uploadedFaces, mips, stride, checked(pixels * frames * uploadedFaces * stride) );
+		var bytes = TextureLoader.StaysCompressed( header.HiResFormat, header.Width, header.Height, uploadedFaces )
+			? blocks * (header.HiResFormat is VtfFormat.DXT3 or VtfFormat.DXT5 ? 16 : 8) : pixels * stride;
+		return new( Normalize( path ), header.Width, header.Height, frames, uploadedFaces, mips, stride, checked(bytes * frames * uploadedFaces) );
 	}
 
 	private static string Normalize( string path ) => path.Replace( '\\', '/' ).TrimStart( '/' ).ToLowerInvariant();
