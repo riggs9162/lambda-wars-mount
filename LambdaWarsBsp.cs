@@ -22,6 +22,9 @@ internal sealed class LambdaWarsBsp
 	internal Lump[] Lumps { get; } = new Lump[64];
 	internal IReadOnlyList<Dictionary<string, string>> Entities { get; }
 	internal IReadOnlyDictionary<Dictionary<string, string>, string[]> BuildingCountOutputs { get; }
+
+	/// <summary>Repeated map-logic outputs of entities the game scripts itself, keyed by entity and then by output name.</summary>
+	internal IReadOnlyDictionary<Dictionary<string, string>, Dictionary<string, string[]>> ScriptOutputs { get; }
 	internal IReadOnlyList<Start> Starts { get; }
 		internal BBox Bounds
 	{
@@ -30,6 +33,19 @@ internal sealed class LambdaWarsBsp
 			using var reader = Open();
 			reader.BaseStream.Position = Lumps[14].Offset;
 			return new( ReadVector( reader ), ReadVector( reader ) );
+		}
+	}
+
+	/// <summary>Reads the authored off-mesh connections between a recast entity and its target; the jump-down flag makes one one-way.</summary>
+	internal IEnumerable<(Vector3 Start, Vector3 End, bool OneWay)> OffMeshLinks()
+	{
+		foreach ( var entity in Entities.Where( entity => entity.GetValueOrDefault( "classname" ) == "recast_offmesh_connection" ) )
+		{
+			var name = entity.GetValueOrDefault( "target", "" );
+			var target = name.Length == 0 ? null : Entities.FirstOrDefault( candidate => candidate.GetValueOrDefault( "targetname", "" ).Equals( name, StringComparison.OrdinalIgnoreCase ) );
+			if ( target is null || !int.TryParse( entity.GetValueOrDefault( "spawnflags", "0" ), out var flags ) || (flags & 16) != 0 )
+				continue;
+			yield return (Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) ), Vector( target.GetValueOrDefault( "origin", "0 0 0" ) ), (flags & 32) != 0);
 		}
 	}
 
@@ -59,11 +75,18 @@ internal sealed class LambdaWarsBsp
 				.ToDictionary( group => group.Key, group => group.Last().Groups[2].Value, StringComparer.OrdinalIgnoreCase );
 			var outputs = fields.Where( field => field.Groups[1].Value.Equals( "OnBuildingCountChanged", StringComparison.OrdinalIgnoreCase ) )
 				.Select( field => field.Groups[2].Value ).ToArray();
-			return (Values: values, Outputs: outputs);
+			var scripted = values.GetValueOrDefault( "classname", "" ) is "overrun_manager" or "logic_relay" or "math_counter"
+				? fields.Where( field => field.Groups[1].Value.StartsWith( "On", StringComparison.OrdinalIgnoreCase ) )
+					.GroupBy( field => field.Groups[1].Value, StringComparer.OrdinalIgnoreCase )
+					.ToDictionary( group => group.Key, group => group.Select( field => field.Groups[2].Value ).ToArray(), StringComparer.OrdinalIgnoreCase )
+				: null;
+			return (Values: values, Outputs: outputs, Scripted: scripted);
 		} ).ToArray();
 		Entities = parsedEntities.Select( entity => entity.Values ).ToArray();
 		BuildingCountOutputs = parsedEntities.Where( entity => entity.Outputs.Length > 0 )
 			.ToDictionary( entity => entity.Values, entity => entity.Outputs );
+		ScriptOutputs = parsedEntities.Where( entity => entity.Scripted is { Count: > 0 } )
+			.ToDictionary( entity => entity.Values, entity => entity.Scripted );
 		Starts = Entities.Where( entity => entity.GetValueOrDefault( "classname" ) == "info_start_wars" )
 			.Select( entity => new Start( int.Parse( entity.GetValueOrDefault( "ownernumber", "0" ), CultureInfo.InvariantCulture ),
 				entity.GetValueOrDefault( "groupname", "" ), Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) ),

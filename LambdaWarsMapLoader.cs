@@ -6,6 +6,8 @@ namespace Sandbox.Mounting.Source1;
 
 internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false ) : SceneLoader<LambdaWarsMount>
 {
+	private static readonly Vector3 WavePointClearance = Vector3.One * 1024;
+
 	private LambdaWarsImportBudget budget;
 
 	protected override void BuildScene()
@@ -89,6 +91,8 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
         AddEntityProps( bsp, sky, false );
         AddLighting( bsp );
         AddEntityMarkers( bsp );
+		if ( bsp.Entities.Any( entity => entity.GetValueOrDefault( "classname", "" ) == "overrun_wave_spawnpoint" ) )
+			AddOffMeshLinks( bsp );
 		if ( sky is not null )
 		{
 			var scene = SceneFile.Load( $"mount://{Host.Ident}/{filename}.sky.scene" );
@@ -126,7 +130,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		} )
 		.Where( bounds => bounds.Size.x > 0 && bounds.Size.y > 0 && bounds.Size.z > 0 ).ToArray();
 
-	/// <summary>Limits navigation generation to the playable regions horizontally while keeping the map's full height range.</summary>
+	/// <summary>Limits navigation generation to the playable regions horizontally while keeping the map's full height range and reaching any Overrun wave points placed beyond them.</summary>
 	private static BBox NavigationBounds( LambdaWarsBsp bsp )
 	{
 		var regions = PlayableRegions( bsp );
@@ -134,9 +138,11 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			return bsp.Bounds;
 
 		var world = bsp.Bounds;
+		var areas = regions.Concat( bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) == "overrun_wave_spawnpoint" )
+			.Select( entity => BBox.FromPositionAndSize( LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) ), WavePointClearance ) ) ).ToArray();
 		return new BBox(
-			new Vector3( Math.Max( world.Mins.x, regions.Min( r => r.Mins.x ) ), Math.Max( world.Mins.y, regions.Min( r => r.Mins.y ) ), world.Mins.z ),
-			new Vector3( Math.Min( world.Maxs.x, regions.Max( r => r.Maxs.x ) ), Math.Min( world.Maxs.y, regions.Max( r => r.Maxs.y ) ), world.Maxs.z ) );
+			new Vector3( Math.Max( world.Mins.x, areas.Min( r => r.Mins.x ) ), Math.Max( world.Mins.y, areas.Min( r => r.Mins.y ) ), world.Mins.z ),
+			new Vector3( Math.Min( world.Maxs.x, areas.Max( r => r.Maxs.x ) ), Math.Min( world.Maxs.y, areas.Max( r => r.Maxs.y ) ), world.Maxs.z ) );
 	}
 
 	/// <summary>Imports NPC clip brushes as invisible static collision tagged "npcclip" with matching navigation blockers so pathing and unit movement respect them while ground, sight and weapon traces ignore them.</summary>
@@ -544,6 +550,21 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 				collider.Model = model;
 				collider.Static = true;
 			}
+		}
+	}
+
+	/// <summary>Adds the Overrun maps' authored jump connections to navigation.</summary>
+	private static void AddOffMeshLinks( LambdaWarsBsp bsp )
+	{
+		foreach ( var (start, end, oneWay) in bsp.OffMeshLinks() )
+		{
+			var connection = new GameObject( true, "recast_offmesh_connection" );
+			connection.WorldPosition = start;
+			var link = connection.Components.Create<NavMeshLink>();
+			link.LocalStartPosition = Vector3.Zero;
+			link.LocalEndPosition = end - start;
+			link.IsBiDirectional = !oneWay;
+			link.ConnectionRadius = 64;
 		}
 	}
 

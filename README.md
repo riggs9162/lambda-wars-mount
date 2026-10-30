@@ -18,6 +18,8 @@ To update, close s&box and replace the `lambda_wars` folder with the one from th
 
 Each release is built against the s&box engine version named in its release notes. An s&box update can change engine APIs; if the mount stops loading after an update, use a newer release or build it yourself.
 
+The map catalog lists the original `hlw_` battlefields and `or_` Overrun maps. Overrun maps also expose their wave spawn points and the map logic that opens doors and enables spawn points.
+
 Original game assets are read from the installed game and are never copied by this project. Settings provides a manual content path accepting either the installation root or its `lambdawars` directory. Applying stages a new file index before refreshing the mount in the menu or lobby; clearing the path restores automatic Steam discovery. The engine needs one restart when installing a new mount DLL, but content paths and map selection do not.
 
 Steam's registered installation is preferred by default. An explicitly saved manual path overrides discovery; `LAMBDA_WARS_GAME_PATH` remains a fallback when no valid installation is otherwise available. Manual configuration is stored locally in `%LOCALAPPDATA%/LambdaWarsSbox/content.json` and is never replicated to other players. Both loose installations with `.dx90.vtx` model companions and Steam VPKs with `.vtx` companions are supported; the original model and texture identifiers stay unchanged.

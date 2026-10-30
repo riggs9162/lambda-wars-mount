@@ -162,11 +162,18 @@ public sealed class LambdaWarsMount : BaseMount
 			throw new InvalidDataException( $"Original map '{mapId}' has no info_start_wars positions." );
 	}
 
+	/// <summary>Selects the entities the game reads from the catalog; Overrun maps also expose their wave points and scripted map logic.</summary>
+	private static bool IsCatalogEntity( string mapId, string classname ) => classname is "control_point" or "trigger_capture_area" or "scrap_marker"
+		or "scrap_marker_small" or "func_nav_blocker" or "unit_maker" or "wars_population_listener"
+		|| mapId.StartsWith( "or_", StringComparison.OrdinalIgnoreCase ) && classname is "overrun_manager" or "overrun_wave_spawnpoint"
+			or "overrun_headcrabcannister_spawnpoint" or "logic_relay" or "math_counter" or "func_door";
+
 	private List<(string Path, object Descriptor, string Error)> ReadMapCatalog( FileIndex files )
 	{
 		Stream Open( string name ) => files.Files.TryGetValue( name, out var source ) ? source.Open() : throw new FileNotFoundException( name );
 		var catalog = new List<(string Path, object Descriptor, string Error)>();
-		var names = files.Files.Keys.Where( path => path.StartsWith( "maps/hlw_", StringComparison.OrdinalIgnoreCase ) && path.EndsWith( ".bsp", StringComparison.OrdinalIgnoreCase ) ).ToArray();
+		var names = files.Files.Keys.Where( path => (path.StartsWith( "maps/hlw_", StringComparison.OrdinalIgnoreCase ) || path.StartsWith( "maps/or_", StringComparison.OrdinalIgnoreCase ))
+			&& path.EndsWith( ".bsp", StringComparison.OrdinalIgnoreCase ) ).ToArray();
 		foreach ( var name in names )
 		{
 			try
@@ -180,7 +187,7 @@ public sealed class LambdaWarsMount : BaseMount
 				var descriptor = new
 				{
 					Id = id,
-					Title = id[4..].Replace( '_', ' ' ),
+					Title = id[(id.IndexOf( '_' ) + 1)..].Replace( '_', ' ' ),
 					Fingerprint = bsp.Fingerprint,
 					StaticPropCount = staticProps.PropCount,
 					StaticPropModelCount = staticProps.ModelCount,
@@ -191,7 +198,9 @@ public sealed class LambdaWarsMount : BaseMount
 					PreviewPath = overview.IsValid ? overview.TexturePath : "",
 					Overview = overview,
 					Starts = bsp.Starts.Select( start => new { start.OwnerNumber, start.GroupName, start.Position, start.Rotation } ).ToArray(),
-					Entities = bsp.Entities.Where( entity => entity.GetValueOrDefault( "classname", "" ) is "control_point" or "trigger_capture_area" or "scrap_marker" or "scrap_marker_small" or "func_nav_blocker" or "unit_maker" or "wars_population_listener" )
+					NavigationLinks = id.StartsWith( "or_", StringComparison.OrdinalIgnoreCase )
+						? bsp.OffMeshLinks().Select( link => new { link.Start, link.End, link.OneWay } ).ToArray() : [],
+					Entities = bsp.Entities.Where( entity => IsCatalogEntity( id, entity.GetValueOrDefault( "classname", "" ) ) )
 						.Select( entity => new
 						{
 							ClassName = entity.GetValueOrDefault( "classname", "" ),
@@ -200,7 +209,8 @@ public sealed class LambdaWarsMount : BaseMount
 							BoundsMins = bsp.EntityBounds( entity ).Mins,
 							BoundsMaxs = bsp.EntityBounds( entity ).Maxs,
 							KeyValues = entity,
-							BuildingCountOutputs = bsp.BuildingCountOutputs.GetValueOrDefault( entity ) ?? Array.Empty<string>()
+							BuildingCountOutputs = bsp.BuildingCountOutputs.GetValueOrDefault( entity ) ?? Array.Empty<string>(),
+							Outputs = bsp.ScriptOutputs.GetValueOrDefault( entity ) ?? new Dictionary<string, string[]>()
 						} ).ToArray(),
 					IsPlayable = false,
 					CanPrepare = MapsEnabled && bsp.Starts.Count > 0,
