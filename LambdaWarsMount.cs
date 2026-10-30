@@ -291,7 +291,7 @@ public sealed class LambdaWarsMount : BaseMount
 		var companion = "models/structures/resistance/billet.dx90.vtx";
 		context.Add( ResourceType.GameResource, "catalog.json", new LambdaWarsCatalogLoader( Json.Serialize( new
 		{
-			Version = 5,
+			Version = 6,
 			ContentRevision,
 			ActiveMapId,
 			SupportsLiveReload = true,

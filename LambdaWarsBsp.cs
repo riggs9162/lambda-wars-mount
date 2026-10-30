@@ -75,7 +75,7 @@ internal sealed class LambdaWarsBsp
 				.ToDictionary( group => group.Key, group => group.Last().Groups[2].Value, StringComparer.OrdinalIgnoreCase );
 			var outputs = fields.Where( field => field.Groups[1].Value.Equals( "OnBuildingCountChanged", StringComparison.OrdinalIgnoreCase ) )
 				.Select( field => field.Groups[2].Value ).ToArray();
-			var scripted = values.GetValueOrDefault( "classname", "" ) is "overrun_manager" or "logic_auto" or "logic_timer" or "logic_case" or "logic_relay" or "math_counter"
+			var scripted = IsScripted( values.GetValueOrDefault( "classname", "" ) )
 				? fields.Where( field => field.Groups[1].Value.StartsWith( "On", StringComparison.OrdinalIgnoreCase ) )
 					.GroupBy( field => field.Groups[1].Value, StringComparer.OrdinalIgnoreCase )
 					.ToDictionary( group => group.Key, group => group.Select( field => field.Groups[2].Value ).ToArray(), StringComparer.OrdinalIgnoreCase )
@@ -92,6 +92,11 @@ internal sealed class LambdaWarsBsp
 				entity.GetValueOrDefault( "groupname", "" ), Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) ),
 				Angle( entity.GetValueOrDefault( "angles", "0 0 0" ) ) ) ).OrderBy( start => start.OwnerNumber ).ToArray();
 	}
+
+	/// <summary>Entities whose outputs the game fires itself, or reads to learn what releases a navigation blocker.</summary>
+	private static bool IsScripted( string classname ) => classname is "overrun_manager" or "logic_auto" or "logic_timer" or "logic_case" or "logic_relay" or "math_counter"
+		or "control_point" or "func_door" or "func_movelinear" or "func_brush_garrisonable"
+		|| classname.StartsWith( "build_", StringComparison.Ordinal );
 
 	private int[] multiBlendOffsets;
 
