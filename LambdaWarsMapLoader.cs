@@ -570,7 +570,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		foreach ( var entity in bsp.Entities )
 		{
 			var classname = entity.GetValueOrDefault( "classname", "" );
-			if ( classname is not ("func_brush" or "func_illusionary" or "func_wall" or "func_door" or "func_door_rotating") || !entity.TryGetValue( "model", out var modelName ) || !modelName.StartsWith( '*' ) )
+			if ( classname is not ("func_brush" or "func_brush_garrisonable" or "func_illusionary" or "func_wall" or "func_door" or "func_door_rotating") || !entity.TryGetValue( "model", out var modelName ) || !modelName.StartsWith( '*' ) )
 				continue;
 			var position = LambdaWarsBsp.Vector( entity.GetValueOrDefault( "origin", "0 0 0" ) );
 			var bounds = bsp.EntityBounds( entity );
