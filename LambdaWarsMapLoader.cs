@@ -8,6 +8,19 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 {
 	private static readonly Vector3 WavePointClearance = Vector3.One * 1024;
 
+	private const int SolidContents = 0x1;
+	private const int GrateContents = 0xA;
+	private const int NpcClipContents = 0x20000;
+
+	/// <summary>Sorts brushes into the collision they belong to by their Source contents.</summary>
+	private enum BrushLayer
+	{
+		Solid,
+		Grate,
+		Entity,
+		NpcClip
+	}
+
 	private LambdaWarsImportBudget budget;
 
 	protected override void BuildScene()
@@ -105,6 +118,8 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		}
 		budget.SetStage( "Preparing NPC clip volumes" );
 		AddNpcClip( bsp, sky );
+		budget.SetStage( "Preparing grates and windows" );
+		AddGrates( bsp, sky );
 		var navigation = world.Scene.NavMesh;
 		navigation.IsEnabled = true;
 		navigation.IncludeStaticBodies = true;
@@ -151,7 +166,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		using var reader = bsp.Open();
 		var builder = Model.Builder.WithName( $"{Path}.npcclip" );
 		var hullBounds = new List<BBox>();
-		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, sky, npcClip: true, hullBounds ) == 0 )
+		if ( AddBrushCollision( bsp, reader, builder, 0, budget, null, null, null, sky, BrushLayer.NpcClip, hullBounds ) == 0 )
 			return;
 
 		var clip = new GameObject( true, "npcclip" );
@@ -167,6 +182,33 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			area.IsBlocker = true;
 			area.SceneVolume = new Sandbox.Volumes.SceneVolume { Type = Sandbox.Volumes.SceneVolume.VolumeTypes.Box, Box = bounds };
 		}
+	}
+
+	/// <summary>Imports world grates and windows, including metal walkways, as static collision tagged "grate" that carries and stops units while sight and weapon traces skip it, so fences and railings do not block fire.</summary>
+	private void AddGrates( LambdaWarsBsp bsp, LambdaWarsSkybox sky )
+	{
+		using var reader = bsp.Open();
+		var (textureInfos, textureData, textureNames) = ReadTextureTables( bsp, reader );
+		var builder = Model.Builder.WithName( $"{Path}.grates" );
+		if ( AddBrushCollision( bsp, reader, builder, 0, budget, textureInfos, textureData, textureNames, sky, BrushLayer.Grate ) == 0 )
+			return;
+
+		var grates = new GameObject( true, "grates" );
+		grates.Tags.Add( "grate" );
+		var collider = grates.Components.Create<ModelCollider>();
+		collider.Model = builder.Create();
+		collider.Static = true;
+	}
+
+	/// <summary>Detects a brush entity built only from grates and windows, such as the walkways across Canals.</summary>
+	private static bool IsGrateModel( LambdaWarsBsp bsp, int modelIndex )
+	{
+		using var reader = bsp.Open();
+		return ModelBrushes( bsp, reader, modelIndex ).All( brush =>
+		{
+			reader.BaseStream.Position = bsp.Lumps[18].Offset + brush * 12 + 8;
+			return (reader.ReadInt32() & SolidContents) == 0;
+		} );
 	}
 
 	private Model LoadRegisteredGeometry( int modelIndex )
@@ -185,33 +227,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		var vertices = bsp.ReadLumpRecords<Vector3>( 3 );
 		var edges = bsp.ReadLumpRecords<LambdaWarsBsp.Edge>( 12 );
 		var surfEdges = bsp.ReadLumpRecords<int>( 13 );
-
-		var textureInfos = new LambdaWarsBsp.TextureInfo[bsp.Lumps[6].Length / 72];
-		for ( var i = 0; i < textureInfos.Length; i++ )
-		{
-			reader.BaseStream.Position = bsp.Lumps[6].Offset + i * 72;
-			var u = new Vector4( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
-			var v = new Vector4( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
-			reader.BaseStream.Position += 32;
-			textureInfos[i] = new( u, v, reader.ReadInt32(), reader.ReadInt32() );
-		}
-
-		var textureData = new LambdaWarsBsp.TextureData[bsp.Lumps[2].Length / 32];
-		for ( var i = 0; i < textureData.Length; i++ )
-		{
-			reader.BaseStream.Position = bsp.Lumps[2].Offset + i * 32 + 12;
-			textureData[i] = new( reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32() );
-		}
-
-		var textureNames = new string[bsp.Lumps[44].Length / 4];
-		var names = bsp.GetLump( 43 );
-		for ( var i = 0; i < textureNames.Length; i++ )
-		{
-			reader.BaseStream.Position = bsp.Lumps[44].Offset + i * 4;
-			var offset = reader.ReadInt32();
-			var end = Array.IndexOf( names, (byte)0, offset );
-			textureNames[i] = Encoding.UTF8.GetString( names, offset, end - offset );
-		}
+		var (textureInfos, textureData, textureNames) = ReadTextureTables( bsp, reader );
 
 		reader.BaseStream.Position = bsp.Lumps[14].Offset + modelIndex * 48 + 40;
 		var firstFace = reader.ReadInt32();
@@ -272,9 +288,41 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		if ( !skyOnly && collisionIndices.Count > 0 )
 			builder.AddCollisionMesh( collisionVertices, collisionIndices );
 		if ( !skyOnly )
-			AddBrushCollision( bsp, reader, builder, modelIndex, budget, textureInfos, textureData, textureNames, sky );
+			AddBrushCollision( bsp, reader, builder, modelIndex, budget, textureInfos, textureData, textureNames, sky, modelIndex == 0 ? BrushLayer.Solid : BrushLayer.Entity );
 		budget.SetStage( $"Creating BSP model {modelIndex}" );
 		return builder.Create();
+	}
+
+	private static (LambdaWarsBsp.TextureInfo[] Infos, LambdaWarsBsp.TextureData[] Data, string[] Names) ReadTextureTables( LambdaWarsBsp bsp, BinaryReader reader )
+	{
+		var textureInfos = new LambdaWarsBsp.TextureInfo[bsp.Lumps[6].Length / 72];
+		for ( var i = 0; i < textureInfos.Length; i++ )
+		{
+			reader.BaseStream.Position = bsp.Lumps[6].Offset + i * 72;
+			var u = new Vector4( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+			var v = new Vector4( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+			reader.BaseStream.Position += 32;
+			textureInfos[i] = new( u, v, reader.ReadInt32(), reader.ReadInt32() );
+		}
+
+		var textureData = new LambdaWarsBsp.TextureData[bsp.Lumps[2].Length / 32];
+		for ( var i = 0; i < textureData.Length; i++ )
+		{
+			reader.BaseStream.Position = bsp.Lumps[2].Offset + i * 32 + 12;
+			textureData[i] = new( reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32() );
+		}
+
+		var textureNames = new string[bsp.Lumps[44].Length / 4];
+		var names = bsp.GetLump( 43 );
+		for ( var i = 0; i < textureNames.Length; i++ )
+		{
+			reader.BaseStream.Position = bsp.Lumps[44].Offset + i * 4;
+			var offset = reader.ReadInt32();
+			var end = Array.IndexOf( names, (byte)0, offset );
+			textureNames[i] = Encoding.UTF8.GetString( names, offset, end - offset );
+		}
+
+		return (textureInfos, textureData, textureNames);
 	}
 
 	private static void AddPolygon( Vector3[] points, Vector3 normal, LambdaWarsBsp.TextureInfo info, LambdaWarsBsp.TextureData data, Geometry group )
@@ -464,6 +512,8 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			var solidity = entity.GetValueOrDefault( "Solidity", "0" );
 			if ( !skyOnly && classname != "func_illusionary" && (classname != "func_brush" || solidity != "1" && (!disabled || solidity == "2")) )
 			{
+				if ( IsGrateModel( bsp, index ) )
+					brush.Tags.Add( "grate" );
 				var collider = brush.Components.Create<ModelCollider>();
 				collider.Model = model;
 				collider.Static = true;
@@ -589,10 +639,11 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		}
 	}
 
-	/// <summary>Imports solid, visibly textured brush volumes while preserving their hidden closing and bevel planes.</summary>
-	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, LambdaWarsSkybox sky, bool npcClip = false, List<BBox> hullBounds = null )
+	/// <summary>Imports visibly textured brush volumes of one layer while preserving their hidden closing and bevel planes. Invisible brushes stay out, except NPC clip, which is never drawn.</summary>
+	private static int AddBrushCollision( LambdaWarsBsp bsp, BinaryReader reader, ModelBuilder builder, int modelIndex, LambdaWarsImportBudget budget, LambdaWarsBsp.TextureInfo[] textureInfos, LambdaWarsBsp.TextureData[] textureData, string[] textureNames, LambdaWarsSkybox sky, BrushLayer layer, List<BBox> hullBounds = null )
 	{
 		var added = 0;
+		var npcClip = layer == BrushLayer.NpcClip;
 		var planes = new (Vector3 Normal, float Distance)[bsp.Lumps[1].Length / 20];
 		for ( var i = 0; i < planes.Length; i++ )
 		{
@@ -609,8 +660,7 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 			var firstSide = reader.ReadInt32();
 			var sideCount = reader.ReadInt32();
 			var contents = reader.ReadInt32();
-			var matches = npcClip ? (contents & 0x20000) != 0 && (contents & 0x1) == 0 : (contents & 0x1) != 0;
-			if ( !matches || sideCount < 4 )
+			if ( !InLayer( contents, layer ) || sideCount < 4 )
 				continue;
 			if ( sideCount > 1024 )
 				throw new InvalidDataException( "A collision brush exceeds the current import work budget." );
@@ -649,6 +699,14 @@ internal sealed class LambdaWarsMapLoader( string filename, bool skyOnly = false
 		}
 		return added;
 	}
+
+	private static bool InLayer( int contents, BrushLayer layer ) => layer switch
+	{
+		BrushLayer.Solid => (contents & SolidContents) != 0,
+		BrushLayer.Grate => (contents & SolidContents) == 0 && (contents & GrateContents) != 0,
+		BrushLayer.NpcClip => (contents & SolidContents) == 0 && (contents & NpcClipContents) != 0,
+		_ => (contents & (SolidContents | GrateContents)) != 0
+	};
 
 	/// <summary>
 	/// Detects an authored, non-bevel brush side sloped gently enough to walk on. NPC clip brushes with such a side are
