@@ -6,6 +6,19 @@ namespace Sandbox.Mounting.Source1;
 
 public abstract partial class BaseMount
 {
+	/// <summary>Leaves out script entries whose waves are all absent, so a game's own fallbacks run without a load failure. An entry the parser refuses stays registered and reports why when played.</summary>
+	private static bool HasInstalledWave(VmtNode root, string path, FileIndex files)
+	{
+		try
+		{
+			return SourceSoundDefinition.Parse(root, path).Waves.Any(files.Files.ContainsKey);
+		}
+		catch (Exception exception) when (exception is InvalidDataException or NotSupportedException)
+		{
+			return true;
+		}
+	}
+
 	/// <summary>Registers original logical sound scripts lazily so game cues retain random waves, pitch, volume and distance falloff.</summary>
 	private void MountSoundEvents(MountContext context, FileIndex files)
 	{
@@ -23,7 +36,7 @@ public abstract partial class BaseMount
 			{
 				foreach (var root in ScriptManifest.Parse(Read(path), path, message => Log.Trace(message)))
 				{
-					if (!root.IsBlock || !registered.Add(root.Name))
+					if (!root.IsBlock || !registered.Add(root.Name) || !HasInstalledWave(root, path, files))
 						continue;
 
 					context.Add(ResourceType.GameResource, $"sounds/events/{Uri.EscapeDataString(root.Name.ToLowerInvariant())}.sound",
