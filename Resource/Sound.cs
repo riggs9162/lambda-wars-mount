@@ -15,7 +15,7 @@ internal sealed class Mp3SoundLoader( string fullPath ) : ResourceLoader<BaseMou
 
 internal static class SourceSoundEvents
 {
-	/// <summary>Decodes Source's close/far or front/rear PCM channels as separate mono files without writing original media to disk.</summary>
+	/// <summary>Decodes Source's close/far or front/rear PCM channels as separate mono files without writing original media to disk. A mono file marked this way plays as it is, as it does in Source.</summary>
 	private static SoundFile StereoChannel(BaseMount host, string wave, bool right, bool directional)
 	{
 		using var stream = new System.IO.MemoryStream(host.GetFileBytes(wave), false);
@@ -46,6 +46,8 @@ internal static class SourceSoundEvents
 				samples = reader.ReadBytes(checked((int)size));
 			stream.Position = end + (size & 1);
 		}
+		if (format == 1 && channels == 1)
+			return host.LoadContentSound(wave);
 		if (format != 1 || channels != 2 || bits != 16 || rate is < 8000 or > 192000 || samples is null || samples.Length % 4 != 0)
 			throw new NotSupportedException($"{wave}: stereo variants require stereo 16-bit PCM WAV data.");
 
