@@ -9,10 +9,12 @@ This is an s&box engine mount: it reads models, materials, textures, sounds and 
 1. Install Lambda Wars through Steam (app 270370).
 2. Close s&box and the s&box editor.
 3. Download `lambda-wars-mount-<version>.zip` from the [latest release](https://github.com/riggs9162/lambda-wars-mount/releases/latest).
-4. Extract it into your s&box installation's `mount` folder so you end up with `<sbox>/mount/lambda_wars/lambda_wars.dll` and `<sbox>/mount/lambda_wars/Assets/`. With a default Steam library this is `C:/Program Files (x86)/Steam/steamapps/common/sbox/mount/`.
+4. Extract it into your s&box installation's `mounts` folder so you end up with `<sbox>/mounts/lambda_wars/lambda_wars.dll` and `<sbox>/mounts/lambda_wars/Assets/`. With a default Steam library this is `C:/Program Files (x86)/Steam/steamapps/common/sbox/mounts/`.
+
+   s&box releases from November 2026 onwards only load mounts from `mounts`, next to the official Half-Life 2, Counter-Strike: Source and Garry's Mod mounts. An older install in the singular `mount` folder is ignored and can be deleted.
 5. Start s&box. The mount is discovered on startup and appears as `lambda_wars`; its content is addressed as `mount://lambda_wars/<original path>`.
 
-The mount finds the Steam installation automatically. If Lambda Wars lives somewhere Steam does not report, set the `LAMBDA_WARS_GAME_PATH` environment variable to the installation folder before starting s&box.
+The mount finds the Steam installation automatically from Steam's registry entries and library folders, since the engine no longer tells mounts where a game is installed. If Lambda Wars lives somewhere Steam does not report, set the `LAMBDA_WARS_GAME_PATH` environment variable to the installation folder before starting s&box.
 
 To update, close s&box and replace the `lambda_wars` folder with the one from the newer release. To uninstall, delete it.
 
@@ -38,7 +40,7 @@ Build the production mount project with .NET 10 against your local engine:
 dotnet build LambdaWars.Source1Mount.csproj -c Release -m:1 -nr:false -p:UseSharedCompilation=false "-p:EnginePath=<sbox installation>"
 ```
 
-With the editor and game closed, copy the resulting `bin/Release/LambdaWars.Source1Mount.dll` to `<sbox installation>/mount/lambda_wars/lambda_wars.dll` and copy `Assets` to `<sbox installation>/mount/lambda_wars/Assets`. Release archives also contain compiled shaders; a source build relies on the engine compiling them. The engine must discover the trusted mount on startup. The game does not bypass its code sandbox. Standard platform delivery is not established by local DLL installation.
+With the editor and game closed, copy the resulting `bin/Release/LambdaWars.Source1Mount.dll` to `<sbox installation>/mounts/lambda_wars/lambda_wars.dll` and copy `Assets` to `<sbox installation>/mounts/lambda_wars/Assets`. Release archives also contain compiled shaders; a source build relies on the engine compiling them. The engine must discover the trusted mount on startup. The game does not bypass its code sandbox. Standard platform delivery is not established by local DLL installation.
 
 ## Current import limits
 
@@ -63,7 +65,7 @@ With the editor and game closed, copy the resulting `bin/Release/LambdaWars.Sour
 - Before changing scenes, every human connection and spectator prepares its selected map and acknowledges its fingerprint. The host waits for these acknowledgements, then waits separately for collision, navigation and roster validation. Content path changes are rejected during a battlefield.
 - The original maps remain validation-gated. Loading metadata is not proof of a playable map.
 
-Source shaders under `Assets/shaders/source1` are engine implementation code rather than original-game artwork. Do not run concurrent shader compilation, map loading or game instances during validation.
+Source shaders under `Assets/shaders/lambda_wars` are engine implementation code rather than original-game artwork. They live in their own `shaders/lambda_wars` folder because the official Source mount ships different shaders under `shaders/source1`, and both would otherwise share the same asset paths. Do not run concurrent shader compilation, map loading or game instances during validation.
 
 ## Original animation channels
 
