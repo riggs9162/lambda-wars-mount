@@ -43,9 +43,9 @@ struct PixelInput
 VS
 {
 	#include "common/vertex.hlsl"
-	#include "source1/uv.hlsl"
-	#include "source1/alpha.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/uv.hlsl"
+	#include "lambda_wars/alpha.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	float3 g_vSourceColorTint < Default3( 1, 1, 1 ); >;
 	float g_flSourceVertexColor < Default( 0 ); >;
@@ -72,7 +72,7 @@ PS
 	#define BLEND_MODE_ALREADY_SET
 	#define CULL_MODE_ALREADY_SET
 	#include "common/pixel.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	BoolAttribute( DoNotCastShadows, true );
 	BoolAttribute( renderbackfaces, F_RENDER_BACKFACES != 0 );

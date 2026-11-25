@@ -35,7 +35,7 @@ struct PixelInput
 VS
 {
 	#include "common/vertex.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	PixelInput MainVs( VertexInput v )
 	{
@@ -49,8 +49,8 @@ PS
 {
 	StaticCombo( S_SOURCE_CUBEMAP, F_SOURCE_CUBEMAP, Sys( ALL ) );
 	#include "common/pixel.hlsl"
-	#include "source1/frames.hlsl"
-	#include "source1/uv.hlsl"
+	#include "lambda_wars/frames.hlsl"
+	#include "lambda_wars/uv.hlsl"
 
 	SamplerState g_sNormal < Attribute( "g_tNormalSampler" ); Filter( ANISO ); AddressU( WRAP ); AddressV( WRAP ); >;
 	SamplerState g_sEnvCube < Attribute( "g_tEnvCubeSampler" ); Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;

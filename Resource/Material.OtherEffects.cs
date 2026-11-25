@@ -25,7 +25,7 @@ internal sealed partial class SourceMaterialBuilder
 
 	private Material CreateVolumeClouds( string resourceName )
 	{
-		var material = CreateShaderMaterial( "shaders/source1/volume_clouds.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/lambda_wars/volume_clouds.shader", resourceName );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		string[] keys = ["$basetexture", "$basetexture2", "$basetexture3"];
 		string[] inputs = ["g_tColor", "g_tTexture2", "g_tTexture3"];

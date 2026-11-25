@@ -49,8 +49,8 @@ struct PixelInput
 VS
 {
 	#include "common/vertex.hlsl"
-	#include "source1/alpha.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/alpha.hlsl"
+	#include "lambda_wars/frames.hlsl"
 	StaticCombo( S_SOURCE_VORTWARP, F_SOURCE_VORTWARP, Sys( ALL ) );
 	float g_flSourceWarpParam < Default( 0 ); >;
 	float3 g_vSourceWarpOrigin < Default3( 0, 0, 0 ); >;
@@ -92,7 +92,7 @@ PS
 	// sbox_pixel supplies culling; suppress the duplicate declaration in vr_common_ps_code.
 	#define CULL_MODE_ALREADY_SET
 	#include "common/pixel.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	// Explicit clipping gives the same cutoff in the forward and shadow/depth passes.
 	#if S_TRANSLUCENT
@@ -257,7 +257,7 @@ PS
 	float g_flSourceDiffuseBumpLighting < Default( 1 ); >;
 	float g_flSourceDirectLightScale < Default( 1 ); >;
 
-	#include "source1/uv.hlsl"
+	#include "lambda_wars/uv.hlsl"
 
 	float3 SourceNormalize( float3 normal )
 	{

@@ -8,7 +8,7 @@ internal sealed partial class SourceMaterialBuilder
 	private Material CreateEye( bool refract, VmtParameters parameters, string resourceName )
 	{
 		var name = resourceName ?? $"{FullPath}.vmat";
-		var material = CreateShaderMaterial( "shaders/source1/eyes.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/lambda_wars/eyes.shader", resourceName );
 		material.SetFeature( "F_SOURCE_EYE_REFRACT", refract ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		if ( !refract )

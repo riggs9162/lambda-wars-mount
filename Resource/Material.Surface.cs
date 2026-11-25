@@ -75,7 +75,7 @@ internal sealed partial class SourceMaterialBuilder
 		var translucent = framebuffer || additive || alpha.CanBeTranslucent || vertexAlpha
 			|| (parameters.Boolean( "$translucent" ) && hasOpacity);
 
-		var material = CreateShaderMaterial( "shaders/source1/surface.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/lambda_wars/surface.shader", resourceName );
 		material.Set( "g_flSourceReceiveDecals", !parameters.Boolean( "$nodecal" ) );
 		animation.GetValueOrDefault().Bind( material, color );
 		material.SetFeature( "F_SOURCE_UNLIT", unlit ? 1 : 0 );

@@ -36,7 +36,7 @@ struct PixelInput
 VS
 {
 	#include "common/vertex.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	PixelInput MainVs( VertexInput v )
 	{
@@ -54,8 +54,8 @@ PS
 	#define CULL_MODE_ALREADY_SET 1
 	#include "common/pixel.hlsl"
 	#include "common/classes/Depth.hlsl"
-	#include "source1/frames.hlsl"
-	#include "source1/uv.hlsl"
+	#include "lambda_wars/frames.hlsl"
+	#include "lambda_wars/uv.hlsl"
 
 	BoolAttribute( bWantsFBCopyTexture, true );
 	BoolAttribute( renderbackfaces, F_RENDER_BACKFACES != 0 );

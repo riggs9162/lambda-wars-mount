@@ -31,7 +31,7 @@ internal sealed partial class SourceMaterialBuilder
 		if ( !float.IsFinite( tint.x ) || !float.IsFinite( tint.y ) || !float.IsFinite( tint.z ) )
 			throw new InvalidDataException( $"{name}: UnlitTwoTexture color modulation overflows." );
 
-		var material = CreateShaderMaterial( "shaders/source1/two_texture.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/lambda_wars/two_texture.shader", resourceName );
 		animation.GetValueOrDefault().Bind( material, color );
 		material.SetFeature( "F_TRANSLUCENT", blended || additive ? 1 : 0 );
 		material.SetFeature( "F_SOURCE_ALPHA_BLEND", blended ? 1 : 0 );

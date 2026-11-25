@@ -8,7 +8,7 @@ internal sealed partial class SourceMaterialBuilder
 	/// <summary>Preserves Source's ordered, texture-alpha-controlled four-layer terrain painting.</summary>
 	private Material CreateMultiBlend( string resourceName )
 	{
-		var material = CreateShaderMaterial( "shaders/source1/multiblend.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/lambda_wars/multiblend.shader", resourceName );
 		for ( var layer = 1; layer <= 4; layer++ )
 		{
 			var suffix = layer == 1 ? "" : layer.ToString();

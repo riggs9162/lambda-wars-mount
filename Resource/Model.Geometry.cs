@@ -105,7 +105,7 @@ internal sealed partial class SourceModelBuilder
 								? vertexTransforms[i].Point( uniqueVerts[i].position ) : uniqueVerts[i].position;
 						builder.AddTraceMesh( tracePositions, indices );
 					}
-					if ( materials.UsesShader( mesh.Material, lod, "shaders/source1/teeth.shader" ) )
+					if ( materials.UsesShader( mesh.Material, lod, "shaders/lambda_wars/teeth.shader" ) )
 					{
 						if ( mesh.MaterialType == 1 )
 							throw new NotSupportedException( $"{FullPath}: Teeth requires an MDL mouth mesh, not an eye mesh." );

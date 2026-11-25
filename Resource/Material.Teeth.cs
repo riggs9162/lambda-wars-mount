@@ -15,7 +15,7 @@ internal sealed partial class SourceMaterialBuilder
 			throw new InvalidDataException( $"{name}: $phongexponent must not be negative." );
 		var illumination = parameters.Float( "$illumfactor", 1 );
 		var bump = !string.IsNullOrWhiteSpace( parameters.String( "$bumpmap" ) );
-		var material = CreateShaderMaterial( "shaders/source1/teeth.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/lambda_wars/teeth.shader", resourceName );
 		material.SetFeature( "F_SOURCE_TEETH_BUMP", bump ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		material.Set( "g_flSourceIllumFactor", illumination );

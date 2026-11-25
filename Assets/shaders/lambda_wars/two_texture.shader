@@ -42,7 +42,7 @@ struct PixelInput
 VS
 {
 	#include "common/vertex.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	PixelInput MainVs( VertexInput v )
 	{
@@ -65,8 +65,8 @@ PS
 	#define DEPTH_STATE_ALREADY_SET
 	#define CULL_MODE_ALREADY_SET
 	#include "common/pixel.hlsl"
-	#include "source1/uv.hlsl"
-	#include "source1/frames.hlsl"
+	#include "lambda_wars/uv.hlsl"
+	#include "lambda_wars/frames.hlsl"
 
 	RenderState( DepthEnable, !S_SOURCE_IGNORE_Z );
 	RenderState( DepthFunc, GREATER_EQUAL );

@@ -11,7 +11,7 @@ internal sealed partial class SourceMaterialBuilder
 	/// </summary>
 	private Material CreateWater( string resourceName, bool sky = false )
 	{
-		var material = CreateShaderMaterial( sky ? "shaders/source1/sky_water.shader" : "shaders/source1/water.shader", resourceName );
+		var material = CreateShaderMaterial( sky ? "shaders/lambda_wars/sky_water.shader" : "shaders/lambda_wars/water.shader", resourceName );
 		if ( !sky )
 			material.SetFeature( "F_SOURCE_ABOVE_WATER", parameters.Boolean( "$abovewater", true ) ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
