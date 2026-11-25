@@ -11,7 +11,6 @@ public sealed class LambdaWarsMount : BaseMount
 	private readonly List<object> maps = new();
 	private string activePackage;
 	private string installationPath;
-	private string steamInstallationPath;
 	private string requestedMap;
 	private FileIndex pendingIndex;
 	private string pendingIndexPath;
@@ -31,8 +30,7 @@ public sealed class LambdaWarsMount : BaseMount
 	protected override void Initialize( InitializeContext context )
 	{
 		IsInstalled = true;
-		steamInstallationPath = context.IsAppInstalled( AppId ) ? context.GetAppDirectory( AppId ) : null;
-		InstallationSelection = LambdaWarsInstallation.Resolve( steamInstallationPath, Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" ) );
+		InstallationSelection = LambdaWarsInstallation.Resolve( null, Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" ) );
 		if ( !InstallationSelection.IsAvailable )
 			return;
 
@@ -78,7 +76,7 @@ public sealed class LambdaWarsMount : BaseMount
 
 	internal Task StageInstallationAsync( string candidate ) => Task.Run( () =>
 	{
-		var selection = LambdaWarsInstallation.ResolveCandidate( candidate, steamInstallationPath, Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" ) );
+		var selection = LambdaWarsInstallation.ResolveCandidate( candidate, null, Environment.GetEnvironmentVariable( "LAMBDA_WARS_GAME_PATH" ) );
 		if ( !selection.IsAvailable )
 			throw new InvalidDataException( selection.Status );
 		LoadingStage = "Indexing installation files and reading texture headers";
@@ -237,8 +235,8 @@ public sealed class LambdaWarsMount : BaseMount
 
 	protected override Task Mount( MountContext context )
 	{
-		context.Add( ResourceType.GameResource, "configuration.json", new LambdaWarsConfigurationLoader( steamInstallationPath, () => installationPath ) );
-		context.Add( ResourceType.GameResource, "configuration-apply.json", new LambdaWarsConfigurationLoader( steamInstallationPath, () => installationPath, true ) );
+		context.Add( ResourceType.GameResource, "configuration.json", new LambdaWarsConfigurationLoader( null, () => installationPath ) );
+		context.Add( ResourceType.GameResource, "configuration-apply.json", new LambdaWarsConfigurationLoader( null, () => installationPath, true ) );
 		context.Add( ResourceType.GameResource, "map-selection.json", new LambdaWarsMapSelectionLoader() );
 		context.Add( ResourceType.GameResource, "progress.json", new LambdaWarsProgressLoader() );
 		context.Add( ResourceType.GameResource, "map-preparation.json", new LambdaWarsMapPreparationLoader() );

@@ -5,3 +5,5 @@ global using System.IO;
 global using System.Linq;
 global using System.Threading.Tasks;
 global using static Sandbox.Internal.GlobalGameNamespace;
+
+[assembly: System.Reflection.AssemblyMetadata( "Ident", "local.lambda_wars" )]
